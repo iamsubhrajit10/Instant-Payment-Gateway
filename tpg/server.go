@@ -34,5 +34,5 @@ func main() {
 
 	//Start the echo server
 	e := router.SetupRouter()
-	e.Logger.Fatal(e.Start(":8080"))
+	e.Logger.Fatal(e.Start(":8000"))
 }
