@@ -8,17 +8,13 @@ import (
 	"tpg/internals/router"
 	"tpg/scheduler"
 
-	// "tpg/scheduler"
-
 	"github.com/go-co-op/gocron/v2"
 )
 
 func main() {
-	e := router.SetupRouter()
-
 	s, err := gocron.NewScheduler()
 	if err != nil {
-		log.Fatal(err)
+		log.Fatal("error: unable to create new scheduler")
 	}
 
 	j, err := s.NewJob(
@@ -31,9 +27,12 @@ func main() {
 	)
 
 	if err != nil {
-		log.Fatal(err)
+		log.Fatal("error: unable to populate scheduler with reverse job")
 	}
 	fmt.Println(j.ID())
 	s.Start()
+
+	//Start the echo server
+	e := router.SetupRouter()
 	e.Logger.Fatal(e.Start(":8080"))
 }
