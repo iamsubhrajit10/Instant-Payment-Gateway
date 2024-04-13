@@ -2,7 +2,7 @@ package router
 
 import (
 	"net/http"
-	"tpg/internals/paymenthandler"
+	paymenthandler "tpg/internals/paymenthandler"
 
 	"github.com/labstack/echo/v4"
 )
