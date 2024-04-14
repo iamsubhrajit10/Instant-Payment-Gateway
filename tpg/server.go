@@ -1,18 +1,44 @@
 package main
 
 import (
+	"fmt"
 	"log"
-	"tpg/config"
+	"os"
+	"time"
+
 	"tpg/internals/router"
+	"tpg/scheduler"
+
+	"github.com/go-co-op/gocron/v2"
 )
 
 func main() {
-	e := router.SetupRouter()
-
-	err := config.LoadEnvData()
+	s, err := gocron.NewScheduler()
 	if err != nil {
-		log.Fatalf("Error loading .env file")
+		log.Fatal("error: unable to create new scheduler")
 	}
-	// Start server
-	e.Logger.Fatal(e.Start(":8081"))
+
+	port := "8000"
+	if len(os.Args) > 1 {
+		port = os.Args[1]
+	}
+
+	j, err := s.NewJob(
+		gocron.DurationJob(
+			10*time.Second,
+		),
+		gocron.NewTask(
+			scheduler.Reverse,
+		),
+	)
+
+	if err != nil {
+		log.Fatal("error: unable to populate scheduler with reverse job")
+	}
+	fmt.Println(j.ID())
+	s.Start()
+
+	//Start the echo server
+	e := router.SetupRouter()
+	e.Logger.Fatal(e.Start(":" + port))
 }
