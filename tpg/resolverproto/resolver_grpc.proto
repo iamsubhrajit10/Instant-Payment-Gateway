@@ -18,7 +18,7 @@ syntax = "proto3";
 
 package grpcmsg;
 
-option go_package = "tpg/protos";
+option go_package = "tpg/resolverproto";
 // The greeting service definition.
 service Details {
   // Sends a greeting

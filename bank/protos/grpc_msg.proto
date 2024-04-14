@@ -22,7 +22,7 @@ option go_package = "bank/protos";
 // The greeting service definition.
 service Details {
   // Sends a greeting
-  rpc unarryCall (Clientmsg) returns (Servermsg) {}
+  rpc UnarryCall (Clientmsg) returns (Servermsg) {}
 }
 
 // The request message containing the user's name.

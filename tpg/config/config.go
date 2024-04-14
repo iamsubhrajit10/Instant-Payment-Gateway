@@ -13,7 +13,7 @@ var DebitBankServerPort string
 var CreditBankServerIPV4 string
 var CreditBankServerPort string
 var DebitRetries int
-var ResolverServerPort int
+var ResolverServerPort string
 var ResolverServerIPV4 string
 
 func LoadEnvData() error {

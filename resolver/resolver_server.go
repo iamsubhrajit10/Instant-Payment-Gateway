@@ -27,7 +27,7 @@ import (
 	"log"
 	"net"
 	"resolver/config"
-	pb "resolver/protos"
+	pb "resolver/resolverproto"
 
 	"google.golang.org/grpc"
 )
@@ -87,6 +87,7 @@ func main() {
 	s := grpc.NewServer()
 	pb.RegisterDetailsServer(s, &server{})
 	log.Printf("server listening at %v", lis.Addr())
+	log.Printf("server going to listen at %v", *port)
 	if err := s.Serve(lis); err != nil {
 		log.Fatalf("failed to serve: %v", err)
 	}
