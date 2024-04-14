@@ -3,6 +3,7 @@ package main
 import (
 	"fmt"
 	"log"
+	"os"
 	"time"
 
 	"tpg/internals/router"
@@ -15,6 +16,11 @@ func main() {
 	s, err := gocron.NewScheduler()
 	if err != nil {
 		log.Fatal("error: unable to create new scheduler")
+	}
+
+	port := "8000"
+	if len(os.Args) > 1 {
+		port = os.Args[1]
 	}
 
 	j, err := s.NewJob(
@@ -34,5 +40,5 @@ func main() {
 
 	//Start the echo server
 	e := router.SetupRouter()
-	e.Logger.Fatal(e.Start(":8000"))
+	e.Logger.Fatal(e.Start(":" + port))
 }

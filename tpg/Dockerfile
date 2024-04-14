@@ -1,20 +1,7 @@
-FROM golang:1.21.5
+From nginx:latest
 
-WORKDIR /app
+copy lb.conf /etc/nginx/nginx.conf
 
-# Copy the Go module files to the working directory
-COPY go.mod go.sum ./
+EXPOSE 80
 
-RUN go mod download
-
-# Copy the source code to the working directory
-COPY . .
-
-# Build the Go application
-RUN go build
-
-# Expose the port on which the application will run
-EXPOSE 8000
-
-# Set the command to run the application when the container starts
-CMD ["./tpg"]
+CMD ["nginx", "-g", "daemon off;"]
