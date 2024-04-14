@@ -8,7 +8,7 @@ import (
 
 	"tpg/internals/router"
 	"tpg/scheduler"
-
+	"tpg/config"
 	"github.com/go-co-op/gocron/v2"
 )
 
@@ -40,5 +40,9 @@ func main() {
 
 	//Start the echo server
 	e := router.SetupRouter()
+	err_env := config.LoadEnvData()
+	if err_env != nil {
+		log.Fatalf("Error loading .env file")
+	}
 	e.Logger.Fatal(e.Start(":" + port))
 }

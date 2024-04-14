@@ -37,7 +37,9 @@ func getGRPCConnection(address string) (*grpc.ClientConn, error) {
 
 func getGRPCConnectionResolver(address string) (*grpc.ClientConn, error) {
 	print("Inside getGRPCConnectionResolver")
+	println(address)
 	resolve_addr := flag.String("resolve_addr", address, "the address to connect to")
+	println(*resolve_addr)
 	if _, ok := GrpcConnectionMapRes[*resolve_addr]; !ok {
 		conn, err := grpc.Dial(*resolve_addr, grpc.WithTransportCredentials(insecure.NewCredentials()))
 		if err != nil {
@@ -64,6 +66,7 @@ func getGRPCClient(address string) (pb.DetailsClient, error) {
 
 func getGRPCClientResolver(address string) (resolverpb.DetailsClient, error) {
 	print("Inside getGRPCClientResolver")
+	println(address)
 	if _, ok := GrpcClientMapRes[address]; !ok {
 		ClientConn, err := getGRPCConnectionResolver(address)
 		if err != nil {
@@ -167,6 +170,7 @@ func TransferHandler(c echo.Context) error {
 	//reply that i am responsible for transfer
 	//ti me.Sleep(1 * time.Second)
 	resolverServerIPV4 := config.ResolverServerIPV4 + ":" + config.ResolverServerPort
+	println(resolverServerIPV4)
 	debitBankServerIPV4 := config.DebitBankServerIPV4 + ":" + config.DebitBankServerPort
 	creitBankServerIPV4 := config.CreditBankServerIPV4 + ":" + config.CreditBankServerPort
 	resolveData := RequestDataResolver{
