@@ -20,13 +20,7 @@ docker build the image
 ```bash
 docker build -t loadbalancer:latest .
 ```
-
+run the container with the image made
 ```bash
 docker run -p 80:80 loadbalancer:latest
 ```
-
-run docker image
-```bash
-docker run -p 8000:8000 tpg:latest
-```
-ps: `-p 8000:8000` will expose the 8000 port of the docker container outside port `8000`
