@@ -13,6 +13,8 @@ var DebitBankServerPort string
 var CreditBankServerIPV4 string
 var CreditBankServerPort string
 var DebitRetries int
+var ResolverServerPort int
+var ResolverServerIPV4 string
 
 func LoadEnvData() error {
 	// Load the .env file
@@ -23,6 +25,8 @@ func LoadEnvData() error {
 	}
 
 	// Get the environment variables
+	ResolverServerPort = os.Getenv("RESOLVER_SERVER_PORT")
+	ResolverServerIPV4 = os.Getenv("RESOLVER_SERVER_IPV4")
 	DebitBankServerIPV4 = os.Getenv("DEBITBANKSERVERIPV4")
 	DebitBankServerPort = os.Getenv("DEBITPORT")
 	CreditBankServerIPV4 = os.Getenv("CREDITBANKSERVERIPV4")
