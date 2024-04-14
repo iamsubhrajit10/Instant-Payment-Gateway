@@ -1,7 +1,28 @@
-## How to run the server?
-build the docker image
+## Run three instances of the server
+make new build if you have changes
 ```bash
-docker build --tag tpg:latest .
+go build
+```
+
+run `start.sh` file
+```bash
+./start.sh
+```
+
+## How to run the nginx server?
+generate config file for your private ip
+```bash
+./make_conf.sh
+```
+ps: make sure you have proper permissions
+
+docker build the image
+```bash
+docker build -t loadbalancer:latest .
+```
+
+```bash
+docker run -p 80:80 loadbalancer:latest
 ```
 
 run docker image
