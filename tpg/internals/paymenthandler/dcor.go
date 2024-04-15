@@ -22,6 +22,29 @@ var (
 	GrpcClientMapRes     = make(map[string]resolverpb.DetailsClient)
 )
 
+type RequestDataBank struct {
+	TransactionID string
+	AccountNumber string
+	IFSCCode string
+	HolderName string
+	Amount        int
+	Type          string
+}
+
+type RequestDataResolver struct {
+	TransactionID string
+	PaymentID	 string
+	Type 		string
+}
+type ReplyDataResolver struct {	
+    TransactionID  string `json:"TransactionID"`
+    PaymentID      string `json:"PaymentID"`
+    Status         string `json:"Status"`
+    AccountNumber  string `json:"AccountNumber"`
+    IFSCCode       string `json:"IFSCCode"`
+    HolderName     string `json:"HolderName"`
+}
+
 func getGRPCConnection(address string) (*grpc.ClientConn, error) {
 	addr := flag.String("addr", address, "the address to connect to")
 	if _, ok := GrpcConnectionMap[*addr]; !ok {
@@ -36,8 +59,6 @@ func getGRPCConnection(address string) (*grpc.ClientConn, error) {
 }
 
 func getGRPCConnectionResolver(address string) (*grpc.ClientConn, error) {
-	print("Inside getGRPCConnectionResolver")
-	println(address)
 	resolve_addr := flag.String("resolve_addr", address, "the address to connect to")
 	println(*resolve_addr)
 	if _, ok := GrpcConnectionMapRes[*resolve_addr]; !ok {
@@ -65,8 +86,6 @@ func getGRPCClient(address string) (pb.DetailsClient, error) {
 }
 
 func getGRPCClientResolver(address string) (resolverpb.DetailsClient, error) {
-	print("Inside getGRPCClientResolver")
-	println(address)
 	if _, ok := GrpcClientMapRes[address]; !ok {
 		ClientConn, err := getGRPCConnectionResolver(address)
 		if err != nil {
@@ -79,20 +98,7 @@ func getGRPCClientResolver(address string) (resolverpb.DetailsClient, error) {
 	return GrpcClientMapRes[address], nil
 }
 
-type RequestDataBank struct {
-	TransactionID string
-	AccountNumber string
-	Amount        int
-	Type          string
-}
 
-type RequestDataResolver struct {
-	TransactionID string
-	AccountNumber string
-	Type          string
-	IFSC          string
-	HolderName    string
-}
 
 func debitRequest(bankServerIPV4 string, data RequestDataBank) (string, error) {
 
@@ -132,7 +138,7 @@ func resolveRequest(bankServerIPV4 string, data RequestDataResolver) (string, er
 		return "", err
 	}
 	log.Printf("Greeting: %s", r.GetMessage())
-	return "Success", nil
+	return r.GetMessage(), nil
 }
 
 func creditRequest(bankServerIPV4 string, data RequestDataBank) (string, error) {
@@ -173,49 +179,88 @@ func TransferHandler(c echo.Context) error {
 	println(resolverServerIPV4)
 	debitBankServerIPV4 := config.DebitBankServerIPV4 + ":" + config.DebitBankServerPort
 	creitBankServerIPV4 := config.CreditBankServerIPV4 + ":" + config.CreditBankServerPort
-	resolveData := RequestDataResolver{
+	resolveDataPayer := RequestDataResolver{
 		TransactionID: "1",
-		AccountNumber: "123456",
-		Type:          "resolve",
-		IFSC:          "HDFC0000001",
-		HolderName:    "John Doe",
+		PaymentID: "1",
+		Type: "resolve",
 	}
-	debitData := RequestDataBank{
+	resolveDataPayee := RequestDataResolver{
 		TransactionID: "1",
-		AccountNumber: "123456",
-		Amount:        100,
-		Type:          "debit",
+		PaymentID: "2",
+		Type: "resolve",
 	}
 
-	creditData := RequestDataBank{
-		TransactionID: "1",
-		AccountNumber: "56789",
-		Amount:        100,
-		Type:          "credit",
-	}
-	_, err := resolveRequest(resolverServerIPV4, resolveData)
-	if err != nil {
-		return c.String(http.StatusInternalServerError, "Resolve Failed")
-	}
-	print("Resolve Successful")
 
-	x, err := debitRequest(debitBankServerIPV4, debitData)
+	resovler_respone_payer, err := resolveRequest(resolverServerIPV4, resolveDataPayer)
 	if err != nil {
-		msg, _ := debitRetry(debitBankServerIPV4, debitData)
-		if msg == "Failed" {
-			return c.String(http.StatusInternalServerError, "Debit Failed")
+		return c.String(http.StatusInternalServerError, "Payer Resolve Failed")
+	}
+	log.Printf("Payer Response: %s", resovler_respone_payer)
+	resolve_response_payee, err := resolveRequest(resolverServerIPV4, resolveDataPayee)
+	if err != nil {
+		return c.String(http.StatusInternalServerError, "Payee Resolve Failed")
+	}
+	log.Printf("Payee Response: %s", resolve_response_payee)
+	// extract ReplyDataResolver from resovler_respone
+	var replyResolverPayer ReplyDataResolver
+	var replyResolverPayee ReplyDataResolver
+	err = json.Unmarshal([]byte(resovler_respone_payer), &replyResolverPayer)
+	if err != nil {
+		return c.String(http.StatusInternalServerError, "Failed to unmarshal response from resolver for payer")
+	}
+	err = json.Unmarshal([]byte(resolve_response_payee), &replyResolverPayee)
+	if err != nil {
+		return c.String(http.StatusInternalServerError, "Failed to unmarshal response from resolver for payee")
+	}
+
+	// check if the account number is not found for any of the parties
+	if replyResolverPayer.Status == "not found" {
+		return c.String(http.StatusBadRequest, "Payer Account not found")
+	}
+	if replyResolverPayee.Status == "not found" {
+		return c.String(http.StatusBadRequest, "Payee Account not found")
+	}
+
+	// check if the account number is found for both
+	if replyResolverPayer.Status == "found" && replyResolverPayee.Status == "found" {
+		log.Printf("Payer: %s", replyResolverPayer.AccountNumber)
+		log.Printf("Payee: %s", replyResolverPayee.AccountNumber)
+		debitData := RequestDataBank{
+			TransactionID: replyResolverPayer.TransactionID,
+			AccountNumber: replyResolverPayer.AccountNumber,
+			IFSCCode: replyResolverPayer.IFSCCode,
+			HolderName: replyResolverPayer.HolderName,
+			Amount: 100,
+			Type: "debit",
 		}
+		creditData := RequestDataBank{
+			TransactionID: replyResolverPayee.TransactionID,
+			AccountNumber: replyResolverPayee.AccountNumber,
+			IFSCCode: replyResolverPayee.IFSCCode,
+			HolderName: replyResolverPayee.HolderName,
+			Amount: 100,
+			Type: "credit",
+		}
+
+		x, err := debitRequest(debitBankServerIPV4, debitData)
+		if err != nil {
+			msg, _ := debitRetry(debitBankServerIPV4, debitData)
+			if msg == "Failed" {
+				return c.String(http.StatusInternalServerError, "Debit Failed")
+			}
+			_, err_ := creditRequest(creitBankServerIPV4, creditData)
+			if err_ != nil {
+				return c.String(http.StatusInternalServerError, "Credit Failed")
+			}
+			return c.String(http.StatusOK, "Transfer Successful")
+		}
+		log.Printf("Debit: %s", x)
 		_, err_ := creditRequest(creitBankServerIPV4, creditData)
+	
 		if err_ != nil {
 			return c.String(http.StatusInternalServerError, "Credit Failed")
 		}
 		return c.String(http.StatusOK, "Transfer Successful")
 	}
-	log.Printf("Debit: %s", x)
-	_, err_ := creditRequest(creitBankServerIPV4, creditData)
-
-	if err_ != nil {
-		return c.String(http.StatusInternalServerError, "Credit Failed")
-	}
-	return c.String(http.StatusOK, "Transfer Successful")
+	return c.String(http.StatusInternalServerError, "Transfer Failed")
 }

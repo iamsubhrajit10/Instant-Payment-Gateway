@@ -48,12 +48,12 @@ type RequestData struct {
 }
 
 type ReplyData struct {
-	TransactionID string
-	PaymentID string
-	AccountNumber string
-	IFSCCode string
-	HolderName string
-	status string
+	TransactionID  string `json:"TransactionID"`
+	PaymentID      string `json:"PaymentID"`
+	Status         string `json:"Status"`
+	AccountNumber  string `json:"AccountNumber"`
+	IFSCCode       string `json:"IFSCCode"`
+	HolderName     string `json:"HolderName"`
 }
 
 func processResolveRequest(data RequestData) (ReplyData, error) {
@@ -67,7 +67,7 @@ func processResolveRequest(data RequestData) (ReplyData, error) {
     if err != nil {
         if err == sql.ErrNoRows {
             // No results, set status to "not found" and fill other fields with identifiable string
-            reply.status = "not found"
+            reply.Status = "not found"
             reply.AccountNumber = "N/A"
             reply.IFSCCode = "N/A"
             reply.HolderName = "N/A"
@@ -77,9 +77,8 @@ func processResolveRequest(data RequestData) (ReplyData, error) {
         }
     } else {
         // Results found, set status to "found"
-        reply.status = "found"
+        reply.Status = "found"
     }
-
     return reply, nil
 }
 
@@ -91,6 +90,7 @@ func processGRPCMessage(msg string) (string, error) {
 		return "", err
 	}
 	if data.Type == "resolve" {
+		var reply ReplyData
 		reply, err := processResolveRequest(data)
 		if err != nil {
 			return "", err
@@ -133,6 +133,12 @@ func (s *server) UnarryCall(ctx context.Context, in *pb.Clientmsg) (*pb.Serverms
 
 func main() {
 	config.LoadEnvData()
+	// open the bank_details database
+	var err error
+	db, err = sql.Open("sqlite3", config.DB_PATH)
+	if err != nil {
+		log.Fatalf("Error opening database: %v", err)
+	}
 	port = flag.Int("port", config.RESOLVER_SERVER_PORT, "The resovler server port")
 	flag.Parse()
 	lis, err := net.Listen("tcp", fmt.Sprintf(":%d", *port))

@@ -9,6 +9,7 @@ import (
 )
 
 var RESOLVER_SERVER_PORT int
+var DB_PATH string
 
 func LoadEnvData() error {
 	// Load the .env file
@@ -19,6 +20,7 @@ func LoadEnvData() error {
 	}
 	// Get the environment variables
 	RESOLVER_SERVER_PORT, _ = strconv.Atoi(os.Getenv("RESOLVER_SERVER_PORT"))
+	DB_PATH = os.Getenv("DB_PATH")
 	log.Printf("RESOLVER_SERVER_PORT: %v", RESOLVER_SERVER_PORT)
 	return nil
 }
