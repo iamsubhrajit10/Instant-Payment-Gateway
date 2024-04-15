@@ -28,11 +28,13 @@ import (
 	"net"
 	"resolver/config"
 	pb "resolver/resolverproto"
-
+	"database/sql"
+    _ "github.com/mattn/go-sqlite3"
 	"google.golang.org/grpc"
 )
 
 var port *int
+var db *sql.DB
 
 // server is used to implement helloworld.GreeterServer.
 type server struct {
@@ -41,19 +43,46 @@ type server struct {
 
 type RequestData struct {
 	TransactionID string
-	AccountNumber string
-	Type          string
-	IFSC          string
-	HolderName    string
+	PaymentID string
 }
 
-func processResolveRequest(RequestData RequestData) (string, error) {
-	log.Printf("Processing resolve request: %v", RequestData)
-	return "Resolve request processed", nil
+type ReplyData struct {
+	TransactionID string
+	PaymentID string
+	AccountNumber string
+	IFSCCode string
+	HolderName string
+	status string
+}
+
+func processResolveRequest(data RequestData) (ReplyData, error) {
+    var reply ReplyData
+    reply.TransactionID = data.TransactionID
+    reply.PaymentID = data.PaymentID
+
+    // Query the database for the bank details
+    row := db.QueryRow("SELECT AccountNumber, IFSCCode, HolderName FROM bank_details WHERE PaymentID = ?", data.PaymentID)
+    err := row.Scan(&reply.AccountNumber, &reply.IFSCCode, &reply.HolderName)
+    if err != nil {
+        if err == sql.ErrNoRows {
+            // No results, set status to "not found" and fill other fields with identifiable string
+            reply.status = "not found"
+            reply.AccountNumber = "N/A"
+            reply.IFSCCode = "N/A"
+            reply.HolderName = "N/A"
+        } else {
+            // Some other error occurred
+            return ReplyData{}, err
+        }
+    } else {
+        // Results found, set status to "found"
+        reply.status = "found"
+    }
+
+    return reply, nil
 }
 
 func processGRPCMessage(msg string) (string, error) {
-
 	log.Printf("Processing message: %v", msg)
 	var data RequestData
 	err := json.Unmarshal([]byte(msg), &data)
@@ -61,19 +90,44 @@ func processGRPCMessage(msg string) (string, error) {
 		return "", err
 	}
 	if data.Type == "resolve" {
-		return processResolveRequest(data)
+		reply, err := processResolveRequest(data)
+		if err != nil {
+			return "", err
+		}
+		replyJSON, err := json.Marshal(reply)
+		if err != nil {
+			return "", err
+		}
+		return string(replyJSON), nil
 	}
 	return "", nil
 }
 
 // SayHello implements helloworld.GreeterServer
 func (s *server) UnarryCall(ctx context.Context, in *pb.Clientmsg) (*pb.Servermsg, error) {
-	log.Printf("Received: %v", in.GetName())
-	msg, err := processGRPCMessage(in.GetName())
-	if err != nil {
+	// Create a channel to communicate the result from the goroutine
+	resultChan := make(chan *pb.Servermsg)
+	errorChan := make(chan error)
+
+	// Start a new goroutine to process the gRPC message
+	go func() {
+		log.Printf("Received: %v", in.GetName())
+		msg, err := processGRPCMessage(in.GetName())
+		if err != nil {
+			errorChan <- err
+			return
+		}
+		log.Printf("Sending: %v", msg)
+		resultChan <- &pb.Servermsg{Message: msg}
+	}()
+
+	// Wait for the result from the goroutine
+	select {
+	case result := <-resultChan:
+		return result, nil
+	case err := <-errorChan:
 		return &pb.Servermsg{Message: "Error processing message"}, err
 	}
-	return &pb.Servermsg{Message: msg}, nil
 }
 
 func main() {
