@@ -44,6 +44,7 @@ type server struct {
 type RequestData struct {
 	TransactionID string
 	PaymentID string
+	Type string
 }
 
 type ReplyData struct {
