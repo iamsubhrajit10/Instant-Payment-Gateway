@@ -13,6 +13,7 @@ import (
 	"github.com/labstack/echo/v4"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
+	"fmt"
 )
 
 var (
@@ -59,17 +60,16 @@ func getGRPCConnection(address string) (*grpc.ClientConn, error) {
 }
 
 func getGRPCConnectionResolver(address string) (*grpc.ClientConn, error) {
-	resolve_addr := flag.String("resolve_addr", address, "the address to connect to")
-	println(*resolve_addr)
-	if _, ok := GrpcConnectionMapRes[*resolve_addr]; !ok {
-		conn, err := grpc.Dial(*resolve_addr, grpc.WithTransportCredentials(insecure.NewCredentials()))
+	// fmt.Println(address)
+	if _, ok := GrpcConnectionMapRes[address]; !ok {
+		conn, err := grpc.Dial(address, grpc.WithTransportCredentials(insecure.NewCredentials()))
 		if err != nil {
 			log.Fatalf("did not connect: %v", err)
 			return nil, err
 		}
-		GrpcConnectionMapRes[*resolve_addr] = conn
+		GrpcConnectionMapRes[address] = conn
 	}
-	return GrpcConnectionMapRes[*resolve_addr], nil
+	return GrpcConnectionMapRes[address], nil
 }
 
 func getGRPCClient(address string) (pb.DetailsClient, error) {
@@ -191,26 +191,56 @@ func TransferHandler(c echo.Context) error {
 	}
 
 
-	resovler_respone_payer, err := resolveRequest(resolverServerIPV4, resolveDataPayer)
-	if err != nil {
-		return c.String(http.StatusInternalServerError, "Payer Resolve Failed")
-	}
-	log.Printf("Payer Response: %s", resovler_respone_payer)
-	resolve_response_payee, err := resolveRequest(resolverServerIPV4, resolveDataPayee)
-	if err != nil {
-		return c.String(http.StatusInternalServerError, "Payee Resolve Failed")
-	}
-	log.Printf("Payee Response: %s", resolve_response_payee)
-	// extract ReplyDataResolver from resovler_respone
-	var replyResolverPayer ReplyDataResolver
-	var replyResolverPayee ReplyDataResolver
-	err = json.Unmarshal([]byte(resovler_respone_payer), &replyResolverPayer)
-	if err != nil {
-		return c.String(http.StatusInternalServerError, "Failed to unmarshal response from resolver for payer")
-	}
-	err = json.Unmarshal([]byte(resolve_response_payee), &replyResolverPayee)
-	if err != nil {
-		return c.String(http.StatusInternalServerError, "Failed to unmarshal response from resolver for payee")
+	// Create channels to receive the results
+	payerChan := make(chan ReplyDataResolver)
+	payeeChan := make(chan ReplyDataResolver)
+	errChan := make(chan error)
+
+	// Resolve Payer PaymentID in a goroutine
+	go func() {
+		resolverResponsePayer, err := resolveRequest(resolverServerIPV4, resolveDataPayer)
+		if err != nil {
+			errChan <- fmt.Errorf("Payer Resolve Failed: %w", err)
+			return
+		}
+		log.Printf("Payer Response: %s", resolverResponsePayer)
+
+		var replyResolverPayer ReplyDataResolver
+		err = json.Unmarshal([]byte(resolverResponsePayer), &replyResolverPayer)
+		if err != nil {
+			errChan <- fmt.Errorf("Failed to unmarshal response from resolver for payer: %w", err)
+			return
+		}
+		payerChan <- replyResolverPayer
+	}()
+
+	// Resolve Payee PaymentID in a goroutine
+	go func() {
+		resolveResponsePayee, err := resolveRequest(resolverServerIPV4, resolveDataPayee)
+		if err != nil {
+			errChan <- fmt.Errorf("Payee Resolve Failed: %w", err)
+			return
+		}
+		log.Printf("Payee Response: %s", resolveResponsePayee)
+
+		var replyResolverPayee ReplyDataResolver
+		err = json.Unmarshal([]byte(resolveResponsePayee), &replyResolverPayee)
+		if err != nil {
+			errChan <- fmt.Errorf("Failed to unmarshal response from resolver for payee: %w", err)
+			return
+		}
+		payeeChan <- replyResolverPayee
+	}()
+
+	// Wait for both goroutines to finish
+	replyResolverPayer, replyResolverPayee := <-payerChan, <-payeeChan
+
+	// Check for errors
+	select {
+	case err := <-errChan:
+		return c.String(http.StatusInternalServerError, err.Error())
+	default:
+		// Continue with your code
 	}
 
 	// check if the account number is not found for any of the parties
