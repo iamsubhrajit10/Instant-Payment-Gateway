@@ -173,17 +173,21 @@ func debitRetry(addr string, data RequestDataBank) (string, error) {
 }
 
 func TransferHandler(c echo.Context) error {
-	//reply that i am responsible for transfer
-	//ti me.Sleep(1 * time.Second)
+	// Get the resolver server address
 	resolverServerIPV4 := config.ResolverServerIPV4 + ":" + config.ResolverServerPort
-	println(resolverServerIPV4)
+	// Get the bank server address
 	debitBankServerIPV4 := config.DebitBankServerIPV4 + ":" + config.DebitBankServerPort
+	// Get the bank server address
 	creitBankServerIPV4 := config.CreditBankServerIPV4 + ":" + config.CreditBankServerPort
+
+	// Create the request data for payer
 	resolveDataPayer := RequestDataResolver{
 		TransactionID: "1",
 		PaymentID: "1",
 		Type: "resolve",
 	}
+
+	// Create the request data for payee
 	resolveDataPayee := RequestDataResolver{
 		TransactionID: "1",
 		PaymentID: "2",
@@ -271,7 +275,7 @@ func TransferHandler(c echo.Context) error {
 			Amount: 100,
 			Type: "credit",
 		}
-
+		// Debit the payer and credit the payee
 		x, err := debitRequest(debitBankServerIPV4, debitData)
 		if err != nil {
 			msg, _ := debitRetry(debitBankServerIPV4, debitData)
