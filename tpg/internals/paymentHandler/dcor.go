@@ -111,14 +111,14 @@ func TransferHandler(c echo.Context) error {
 	creitBankServerIPV4 := config.CreditBankServerIPV4 + ":" + config.CreditBankServerPort
 	debitData := RequestData{
 		TransactionID: "1",
-		AccountNumber: "123456",
+		AccountNumber: "1234",
 		Amount:        100,
 		Type:          "debit",
 	}
 
 	creditData := RequestData{
 		TransactionID: "1",
-		AccountNumber: "56789",
+		AccountNumber: "3993",
 		Amount:        100,
 		Type:          "credit",
 	}
