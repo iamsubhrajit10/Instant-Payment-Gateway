@@ -28,10 +28,10 @@ import (
 	"encoding/json"
 	"flag"
 	"fmt"
-	"log"
 	"math/rand"
 	"net"
-	"strconv"
+
+	//"strconv"
 	"time"
 
 	"google.golang.org/grpc"
@@ -49,8 +49,6 @@ type server struct {
 
 type CentLockMangStruct struct {
 	clm *cms.CentLockMang
-	// readCnt  int // total read count
-	// writeCnt int // total write count
 }
 
 type RequestData struct {
@@ -68,22 +66,22 @@ func generateProcessId() string {
 
 func processDebitRequest(RequestData RequestData) (string, error) {
 
-	log.Printf("Processing debit request: %v", RequestData)
-	processId, _ := strconv.Atoi(generateProcessId())
-	p, err := cms.NewProcess(config.LeaderPort, processId, 123)
+	config.Logger.Printf("Processing debit request: %v", RequestData)
+
+	p, err := cms.NewProcess(config.LeaderPort, RequestData.AccountNumber, RequestData.Type)
 	if err != nil {
-		log.Printf("client create error: %v.\n", err.Error())
+		config.Logger.Printf("client create error: %v.\n", err.Error())
 		return "", err
 	}
 
-	msg, err_ := p.Run(fmt.Sprintf("message#%v", processId), cms.RequestData(RequestData), DB)
+	msg, err_ := p.Run(RequestData.AccountNumber, RequestData.Type, cms.RequestData(RequestData))
 	if err_ != nil {
-		log.Printf("Debit request for transaction id %v failed with error: %v.\n", RequestData.TransactionID, err_.Error())
+		config.Logger.Printf("Debit request for transaction id %v failed with error: %v.\n", RequestData.TransactionID, err_.Error())
 		return "", err_
 	}
 
 	if msg != "Debit Success" {
-		log.Printf("Debit request for transaction id %v failed with error: %v.\n", RequestData.TransactionID, msg)
+		config.Logger.Printf("Debit request for transaction id %v failed with error: %v.\n", RequestData.TransactionID, msg)
 		return msg, nil
 	}
 
@@ -91,22 +89,21 @@ func processDebitRequest(RequestData RequestData) (string, error) {
 }
 
 func processCreditRequest(RequestData RequestData) (string, error) {
-	log.Printf("Processing credit request: %v", RequestData)
-	processId, _ := strconv.Atoi(generateProcessId())
-	p, err := cms.NewProcess(config.LeaderPort, processId, 123)
+	config.Logger.Printf("Processing credit request: %v", RequestData)
+	p, err := cms.NewProcess(config.LeaderPort, RequestData.AccountNumber, RequestData.Type)
 	if err != nil {
-		log.Printf("client create error: %v.\n", err.Error())
+		config.Logger.Printf("client create error: %v.\n", err.Error())
 		return "", err
 	}
 
-	msg, err_ := p.Run(fmt.Sprintf("message#%v", processId), cms.RequestData(RequestData), DB)
+	msg, err_ := p.Run(RequestData.AccountNumber, RequestData.Type, cms.RequestData(RequestData))
 	if err_ != nil {
-		log.Printf("Debit request for transaction id %v failed with error: %v.\n", RequestData.TransactionID, err_.Error())
+		config.Logger.Printf("Credit request for transaction id %v failed with error: %v.\n", RequestData.TransactionID, err_.Error())
 		return "", err_
 	}
 
 	if msg != "Credit Success" {
-		log.Printf("Debit request for transaction id %v failed with error: %v.\n", RequestData.TransactionID, msg)
+		config.Logger.Printf("Credit request for transaction id %v failed with error: %v.\n", RequestData.TransactionID, msg)
 		return msg, nil
 	}
 
@@ -114,13 +111,13 @@ func processCreditRequest(RequestData RequestData) (string, error) {
 }
 
 func processReverseRequest(RequestData RequestData) (string, error) {
-	log.Printf("Processing reverse request: %v", RequestData)
+	config.Logger.Printf("Processing reverse request: %v", RequestData)
 	return "Reverse request processed", nil
 }
 
 func processGRPCMessage(msg string) (string, error) {
 
-	log.Printf("Processing message: %v", msg)
+	config.Logger.Printf("Processing message: %v", msg)
 	var data RequestData
 	err := json.Unmarshal([]byte(msg), &data)
 	if err != nil {
@@ -159,7 +156,7 @@ func processGRPCMessage(msg string) (string, error) {
 
 // SayHello implements helloworld.GreeterServer
 func (s *server) UnarryCall(ctx context.Context, in *pb.Clientmsg) (*pb.Servermsg, error) {
-	log.Printf("Received: %v", in.GetName())
+	config.Logger.Printf("Received: %v", in.GetName())
 	msg, err := processGRPCMessage(in.GetName())
 	if err != nil {
 		return &pb.Servermsg{Message: "Error processing message"}, err
@@ -168,86 +165,32 @@ func (s *server) UnarryCall(ctx context.Context, in *pb.Clientmsg) (*pb.Serverms
 }
 func initializeLearderServer() {
 	// initialize the leader server
-	clm, err := cms.NewCentLockMang(config.LeaderPort, config.ServerID)
+	clm, err := cms.NewCentLockMang(config.LeaderPort)
 	if err != nil {
-		log.Printf("Start centralized server manager(%v) error: %v.\n", config.ServerID, err.Error())
+		config.Logger.Printf("Start centralized server manager(%v) error: %v.\n", config.ServerID, err.Error())
 		return
 	}
 	clms := CentLockMangStruct{clm: clm}
 	go clms.clm.Start()
-	// if err := clms.clm.Start(); err != nil {
-	// 	return
-	// }
-}
-
-func connectWithSql() (*sql.DB, string, error) {
-	db, err := sql.Open("mysql", "root:root@tcp(127.0.0.1:3306)/upi")
-	if err != nil {
-		log.Fatal(err)
-		return nil, "", err
-	}
-	//defer DB.Close()
-	if db != nil {
-		log.Printf("DB is not nil")
-		err = db.Ping()
-		log.Printf("DB is not nil")
-		if err != nil {
-			log.Fatal(err)
-			return nil, "", err
-		}
-
-		log.Println("Successfully connected to MySQL database")
-		return db, "Success", nil
-	}
-	return nil, "", nil
 }
 
 func main() {
 
-	DB, msg, err = connectWithSql()
-	if err != nil {
-		log.Fatalf("Error connecting to sql: %v", err)
-	}
-	log.Printf(msg)
-	err = DB.Ping()
-	if err != nil {
-		log.Fatal(err)
-		//return nil, "", err
-	}
-	results, err := DB.Query("SELECT Amount FROM bank_details WHERE Account_number = ?", "1234")
-	if err != nil {
-		//log.Fatal(err)
-		//return "", err
-	}
-
-	for results.Next() {
-		var amount int
-		// for each row, scan the result into our tag composite object
-		err = results.Scan(&amount)
-		if err != nil {
-			log.Fatal(err)
-			// proper error handling instead of panic in your app
-			//	return "", err
-		}
-		log.Printf("Processing debit request3: %v", amount)
-
-	}
-
 	config.LoadEnvData()
 	if config.IsLeader == "TRUE" {
-		log.Printf("Bank server is the leader")
+		config.Logger.Printf("Bank server is the leader")
 		initializeLearderServer()
 	}
 	port = flag.Int("port", config.BANKSERVERPORT, "The server port")
 	flag.Parse()
 	lis, err := net.Listen("tcp", fmt.Sprintf(":%d", *port))
 	if err != nil {
-		log.Fatalf("failed to listen: %v", err)
+		config.Logger.Fatalf("failed to listen: %v", err)
 	}
 	s := grpc.NewServer()
 	pb.RegisterDetailsServer(s, &server{})
-	log.Printf("server listening at %v", lis.Addr())
+	config.Logger.Printf("server listening at %v", lis.Addr())
 	if err := s.Serve(lis); err != nil {
-		log.Fatalf("failed to serve: %v", err)
+		config.Logger.Fatalf("failed to serve: %v", err)
 	}
 }

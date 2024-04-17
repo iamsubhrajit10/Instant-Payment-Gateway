@@ -5,32 +5,27 @@ package cms
 import (
 	msgp "bank/cms/msg"
 	netq "bank/cms/netq"
+	"bank/config"
 	"encoding/json"
 	"errors"
 	"fmt"
-	"log"
-	"strconv"
+	//	"fmt"
+	//	"log"
 	// "os"
 	// "sync"
 )
 
 type dislock struct {
-	cli    netq.Client
-	lockID int // regard it as process id.
-	port   int
-	logger *log.Logger
-
-	// sata info
-	readCnt  int
-	writeCnt int
+	cli  netq.Client
+	port int
 }
 
-func NewDislock(port, lockID int) (*dislock, error) {
-	dl := &dislock{port: port, lockID: lockID}
-	dl.logger = CreateLog("log/dislock_"+strconv.Itoa(lockID)+".log", "[dislock] ")
+func NewDislock(port int) (*dislock, error) {
+	dl := &dislock{port: port}
+	//dl.logger = CreateLog("log/dislock_"+strconv.Itoa(lockID)+".log", "[dislock] ")
 	cli, err := netq.NewClient(dl.port)
 	if err != nil {
-		dl.logger.Printf("dislock(%v) create error: %v.\n", dl.lockID, err.Error())
+		//dl.logger.Printf("dislock(%v) create error: %v.\n", dl.lockID, err.Error())
 		return nil, err
 	}
 	dl.cli = cli
@@ -38,50 +33,43 @@ func NewDislock(port, lockID int) (*dislock, error) {
 }
 
 // TODO: handle timeout.
-func (dl *dislock) Acquire(receiver int, msgContent interface{}) error {
-	// send lock request message.
-	lr := msgp.NewRequest(dl.lockID, receiver, msgContent)
-	log.Printf("lock(%v) send request lock message(%v) to server.\n", dl.lockID, lr.String())
+func (dl *dislock) Acquire(accountNumber, Type string) error {
+	lr := msgp.NewRequest(accountNumber, Type)
+	config.Logger.Printf("%v send request lock message for (%v) to server.\n", accountNumber, Type)
 	lrBytes, _ := json.Marshal(lr)
-	log.Printf("lock(%v) send request lock message(%v) to server.\n", dl.lockID, lr.String())
 	if err := dl.cli.WriteData(lrBytes); err != nil {
-		log.Printf("lock(%v) send request message(%v) error: %v.\n", dl.lockID, lr.String(), err.Error())
+		config.Logger.Printf("%v send request lock message for (%v) to server giving error: (%v).\n", accountNumber, Type, err.Error())
 		return err
 	}
-	dl.writeCnt++
-	// wait for lock grant message
-	log.Printf("lock(%v) wait grant message from server.\n", dl.lockID)
+	config.Logger.Printf("(%v) wait grant message from server.\n", accountNumber)
 	lgBytes, err := dl.cli.ReadData()
 	if err != nil {
-		dl.logger.Printf("lock(%v) receive Grant message error: %v.\n", dl.lockID, err.Error())
+		config.Logger.Printf("(%v) receive Grant message error: %v.\n", accountNumber, err.Error())
 		return err
 	}
-	dl.readCnt++
 	var lg msgp.Message
 	json.Unmarshal(lgBytes, &lg)
-	if lg.MsgType == msgp.Grant {
-		// neglect message content.
-		dl.logger.Printf("lock(%v) receive Grant message(%v) from server.\n", dl.lockID, lg.String())
+	if lg.MsgType == "Grant" {
+		config.Logger.Printf("(%v) receive Grant message for (%v) from server.\n", accountNumber, Type)
 		return nil
 	} else {
-		errMsg := fmt.Sprintf("lock(%v) receive error message(%v) from server.\n", dl.lockID, lg.String())
-		dl.logger.Printf(errMsg)
+		errMsg := fmt.Sprintf("(%v) receive error message for (%v) from server.\n", accountNumber, Type)
+		config.Logger.Printf(errMsg)
 		return errors.New(errMsg)
 	}
 }
 
-func (dl *dislock) Release(receiver int, msgContent interface{}) error {
+func (dl *dislock) Release(accountNumber, Type string) error {
 	// send lock release message.
-	lrl := msgp.NewRelease(dl.lockID, receiver, msgContent)
+	lrl := msgp.NewRelease(accountNumber, Type)
 	lrlBytes, _ := json.Marshal(lrl)
 	if err := dl.cli.WriteData(lrlBytes); err != nil {
-		dl.logger.Printf("lock(%v) send release message(%v) error: %v.\n", dl.lockID, lrl.String(), err.Error())
+		config.Logger.Printf("(%v) send release message of type (%v) error: %v.\n", accountNumber, Type, err.Error())
 		return err
 	}
-	dl.writeCnt++
-	dl.logger.Printf("lock(%v) send release message(%v) successfully.\n", dl.lockID, lrl.String())
-	// dl.cli.Close() // close connection
-	// dl.logger.Printf("lock(%v) closed successfully.\n", dl.lockID)
+	config.Logger.Printf("(%v) send release message of type (%v) successfully.\n", accountNumber, Type)
+	//dl.cli.Close() // close connection
+	config.Logger.Printf("(%v) closed successfully.\n", accountNumber)
 	return nil
 }
 

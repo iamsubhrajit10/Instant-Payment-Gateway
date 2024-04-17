@@ -6,6 +6,7 @@ import (
 	"log"
 	"math/rand"
 	"os"
+	"path/filepath"
 	"strconv"
 	"time"
 
@@ -21,35 +22,44 @@ var ServerID int
 
 var DB *sql.DB
 var msg string
+var err error
+var Logger *log.Logger
 
 func generateRandomID() string {
 	rand.Seed(time.Now().UnixNano())
 	return fmt.Sprintf("%04d", rand.Intn(10000))
 }
 
-func connectWithSql() (*sql.DB, string, error) {
-	db, err := sql.Open("mysql", "root:root@tcp(127.0.0.1:3306)/upi")
-	if err != nil {
-		log.Fatal(err)
-		return nil, "", err
-	}
-	//defer DB.Close()
+func CreateLog(fileName, header string) *log.Logger {
+	newpath := filepath.Join(".", "log")
+	os.MkdirAll(newpath, os.ModePerm)
+	serverLogFile, _ := os.OpenFile(fileName, os.O_RDWR|os.O_CREATE|os.O_TRUNC, 0666)
+	return log.New(serverLogFile, header, log.Lmicroseconds|log.Lshortfile)
+}
 
-	err = db.Ping()
+func ConnectWithSql() (string, error) {
+	DB, err = sql.Open("mysql", "root:root@tcp(127.0.0.1:3306)/upi")
 	if err != nil {
-		log.Fatal(err)
-		return nil, "", err
+		Logger.Fatal(err)
+		return "", err
 	}
 
-	log.Println("Successfully connected to MySQL database")
-	return db, "Success", nil
+	err = DB.Ping()
+	if err != nil {
+		Logger.Fatal(err)
+		return "", err
+	}
+	Logger.Println("Successfully connected to MySQL database")
+	return "Success", nil
 }
 
 func LoadEnvData() error {
+
 	// Load the .env file
+	Logger = CreateLog("log/bank.log", "[Bank]")
 	err := godotenv.Load()
 	if err != nil {
-		log.Fatalf("Error loading .env file")
+		Logger.Fatalf("Error loading .env file")
 		return err
 	}
 
@@ -59,37 +69,11 @@ func LoadEnvData() error {
 	LeaderPort, _ = strconv.Atoi(os.Getenv("LEADERPORT"))
 	IsLeader = os.Getenv("ISLEADER")
 	ServerID, _ = strconv.Atoi(generateRandomID())
-	log.Printf("BANKSERVERPORT: %v", BANKSERVERPORT)
-
-	DB, msg, err = connectWithSql()
+	Logger.Printf("BANKSERVERPORT: %v", BANKSERVERPORT)
+	msg, err := ConnectWithSql()
 	if err != nil {
-		log.Fatalf("Error connecting to sql: %v", err)
+		Logger.Fatalf("Error connecting to sql: %v", err)
 	}
-
-	err = DB.Ping()
-	if err != nil {
-		log.Fatal(err)
-		//return nil, "", err
-	}
-	// results, err := DB.Query("SELECT Amount FROM bank_details WHERE Account_number = ?", "1234")
-	// if err != nil {
-	// 	//log.Fatal(err)
-	// 	//return "", err
-	// }
-
-	// for results.Next() {
-	// 	var amount int
-	// 	// for each row, scan the result into our tag composite object
-	// 	err = results.Scan(&amount)
-	// 	if err != nil {
-	// 		log.Fatal(err)
-	// 		// proper error handling instead of panic in your app
-	// 		//	return "", err
-	// 	}
-	// 	log.Printf("Processing debit request3: %v", amount)
-
-	// }
-
-	log.Printf("SQL connection status: %v", msg)
+	Logger.Printf("SQL connection status: %v", msg)
 	return nil
 }

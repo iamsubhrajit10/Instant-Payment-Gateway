@@ -1,15 +1,15 @@
 package netq
 
 import (
-	msgp "bank/cms/msg"
-	"encoding/json"
-	"fmt"
+	// msgp "bank/cms/msg"
+	// "encoding/json"
+	// "fmt"
 	"log"
-	"math/rand"
+	// "math/rand"
 	"os"
-	"sync"
-	"testing"
-	"time"
+	// "sync"
+	// "testing"
+	// "time"
 )
 
 var (
@@ -57,122 +57,122 @@ type runSystem struct {
 // 	cliReadWrite []int
 // }
 
-func (rs *runSystem) runClient(wg *sync.WaitGroup, index int, managerID int) {
-	defer wg.Done()
-	c := rs.clis[index].cli
-	// write
-	for i := 0; i < rs.msgCnt; i++ {
-		s := msgp.NewRequest(index, managerID, fmt.Sprintf("This is content of [%d,%d]", index, i))
-		mdBytes, _ := json.Marshal(s)
-		if err := c.WriteData(mdBytes); err != nil {
-			logger.Printf("client write error: %v.\n", err.Error())
-			rs.clientDone <- false
-			return
-		}
-		rs.clis[index].cliWriteCnt++
-		// read
-		readBytes, err := c.ReadData()
-		if err != nil {
-			logger.Printf("client read error: %v.\n", err.Error())
-			rs.clientDone <- false
-			return
-		}
-		var r msgp.Message
-		json.Unmarshal(readBytes, &r)
-		// logger.Printf("Client read data from server %v.\n", readBytes)
-		logger.Printf("client read message from server: %v.\n", r.String())
-		rs.clis[index].cliReadCnt++
-	}
-	// c.Close()
-	rs.clientDone <- true
-	return
-}
+// func (rs *runSystem) runClient(wg *sync.WaitGroup, index int, managerID int) {
+// 	defer wg.Done()
+// 	c := rs.clis[index].cli
+// 	// write
+// 	for i := 0; i < rs.msgCnt; i++ {
+// 		s := msgp.NewRequest(index, managerID, fmt.Sprintf("This is content of [%d,%d]", index, i))
+// 		mdBytes, _ := json.Marshal(s)
+// 		if err := c.WriteData(mdBytes); err != nil {
+// 			logger.Printf("client write error: %v.\n", err.Error())
+// 			rs.clientDone <- false
+// 			return
+// 		}
+// 		rs.clis[index].cliWriteCnt++
+// 		// read
+// 		readBytes, err := c.ReadData()
+// 		if err != nil {
+// 			logger.Printf("client read error: %v.\n", err.Error())
+// 			rs.clientDone <- false
+// 			return
+// 		}
+// 		var r msgp.Message
+// 		json.Unmarshal(readBytes, &r)
+// 		// logger.Printf("Client read data from server %v.\n", readBytes)
+// 		logger.Printf("client read message from server: %v.\n", r.String())
+// 		rs.clis[index].cliReadCnt++
+// 	}
+// 	// c.Close()
+// 	rs.clientDone <- true
+// 	return
+// }
 
-func (rs *runSystem) runServer(wg *sync.WaitGroup, managerID int) {
-	defer wg.Done()
-	s := rs.srv.srv
-	// read
-	for {
-		connID, readBytes, err := s.ReadData()
-		if err != nil {
-			logger.Printf("server read error: %v.\n", err.Error())
-			return
-		}
-		var r msgp.Message
-		json.Unmarshal(readBytes, &r)
-		logger.Printf("server read message from connection %v: %v.\n", connID, r.String())
-		rs.srv.srvReadCnt++
-		// write #managerID
-		g := msgp.NewGrant(managerID, r.Sender, r.MsgContent.(string)+"_grant")
-		mdBytes, _ := json.Marshal(g)
-		if err := s.WriteData(connID, mdBytes); err != nil {
-			logger.Printf("client write error: %v.\n", err.Error())
-			return
-		}
-		logger.Printf("server write message to connection %v: %v.\n", connID, g.String())
-		rs.srv.srvWriteCnt++
-	}
-}
+// func (rs *runSystem) runServer(wg *sync.WaitGroup, managerID int) {
+// 	defer wg.Done()
+// 	s := rs.srv.srv
+// 	// read
+// 	for {
+// 		connID, readBytes, err := s.ReadData()
+// 		if err != nil {
+// 			logger.Printf("server read error: %v.\n", err.Error())
+// 			return
+// 		}
+// 		var r msgp.Message
+// 		json.Unmarshal(readBytes, &r)
+// 		logger.Printf("server read message from connection %v: %v.\n", connID, r.String())
+// 		rs.srv.srvReadCnt++
+// 		// write #managerID
+// 		g := msgp.NewGrant(managerID, r.Sender, r.MsgContent.(string)+"_grant")
+// 		mdBytes, _ := json.Marshal(g)
+// 		if err := s.WriteData(connID, mdBytes); err != nil {
+// 			logger.Printf("client write error: %v.\n", err.Error())
+// 			return
+// 		}
+// 		logger.Printf("server write message to connection %v: %v.\n", connID, g.String())
+// 		rs.srv.srvWriteCnt++
+// 	}
+// }
 
-func testBasic1(t *testing.T, cliCnt, managerID, msgCnt, timeout int) {
-	port := 3000 + rand.Intn(50000)
-	s, err := NewServer(port)
-	if err != nil {
-		logger.Printf("server create error: %v.\n", err.Error())
-		return
-	}
-	ss := ServerStruct{srv: s}
-	var clis []ClientStruct
-	for i := 0; i < cliCnt; i++ {
-		c, err := NewClient(port)
-		if err != nil {
-			logger.Printf("client create error: %v.\n", err.Error())
-			return
-		}
-		clis = append(clis, ClientStruct{cli: c})
-	}
-	rs := &runSystem{
-		clis:       clis,
-		srv:        ss,
-		cliCnt:     cliCnt,
-		managerID:  managerID,
-		msgCnt:     msgCnt,
-		timeout:    timeout,
-		clientDone: make(chan bool, len(clis)),
-	}
-	var wg sync.WaitGroup
-	wg.Add(cliCnt + 1)
-	for i := 0; i < cliCnt; i++ {
-		go rs.runClient(&wg, i, managerID)
-	}
+// func testBasic1(t *testing.T, cliCnt, managerID, msgCnt, timeout int) {
+// 	port := 3000 + rand.Intn(50000)
+// 	s, err := NewServer(port)
+// 	if err != nil {
+// 		logger.Printf("server create error: %v.\n", err.Error())
+// 		return
+// 	}
+// 	ss := ServerStruct{srv: s}
+// 	var clis []ClientStruct
+// 	for i := 0; i < cliCnt; i++ {
+// 		c, err := NewClient(port)
+// 		if err != nil {
+// 			logger.Printf("client create error: %v.\n", err.Error())
+// 			return
+// 		}
+// 		clis = append(clis, ClientStruct{cli: c})
+// 	}
+// 	rs := &runSystem{
+// 		clis:       clis,
+// 		srv:        ss,
+// 		cliCnt:     cliCnt,
+// 		managerID:  managerID,
+// 		msgCnt:     msgCnt,
+// 		timeout:    timeout,
+// 		clientDone: make(chan bool, len(clis)),
+// 	}
+// 	var wg sync.WaitGroup
+// 	wg.Add(cliCnt + 1)
+// 	for i := 0; i < cliCnt; i++ {
+// 		go rs.runClient(&wg, i, managerID)
+// 	}
 
-	go rs.runServer(&wg, managerID)
+// 	go rs.runServer(&wg, managerID)
 
-	timeoutChan := time.After(time.Duration(rs.timeout) * time.Millisecond)
-	go func() {
-		clientDoneCnt := 0
-		for {
-			select {
-			case <-rs.clientDone:
-				clientDoneCnt++
-				if clientDoneCnt == len(rs.clis) {
-					time.Sleep(500 * time.Millisecond)
-					rs.Close()
-					return
-				}
-			case <-timeoutChan:
-				rs.Close()
-				logger.Fatalf("Test time out after %v secs.\n", rs.timeout)
-				return
-			}
-		}
-	}()
+// 	timeoutChan := time.After(time.Duration(rs.timeout) * time.Millisecond)
+// 	go func() {
+// 		clientDoneCnt := 0
+// 		for {
+// 			select {
+// 			case <-rs.clientDone:
+// 				clientDoneCnt++
+// 				if clientDoneCnt == len(rs.clis) {
+// 					time.Sleep(500 * time.Millisecond)
+// 					rs.Close()
+// 					return
+// 				}
+// 			case <-timeoutChan:
+// 				rs.Close()
+// 				logger.Fatalf("Test time out after %v secs.\n", rs.timeout)
+// 				return
+// 			}
+// 		}
+// 	}()
 
-	wg.Wait()
+// 	wg.Wait()
 
-	// print stats info
-	rs.printStats()
-}
+// 	// print stats info
+// 	rs.printStats()
+// }
 
 func (rs *runSystem) Close() {
 	for i := 0; i < rs.cliCnt; i++ {
@@ -198,25 +198,4 @@ func (rs *runSystem) printStats() {
 	totalReadCnt += rs.srv.srvReadCnt
 	totalWriteCnt += rs.srv.srvWriteCnt
 	logger.Printf("totalReadCount=%v, totalWriteCount=%v.\n", totalReadCnt, totalWriteCnt)
-}
-
-func TestJsonMarshal(t *testing.T) {
-	s := msgp.NewRequest(1, 2, fmt.Sprintf("This is content of %d", 10))
-	bb, err := json.Marshal(s)
-	if err != nil {
-		logger.Println("error:", err)
-	}
-	os.Stdout.Write(bb)
-
-	var r msgp.Message
-	json.Unmarshal(bb, &r)
-	logger.Println(r)
-}
-
-func Test1(t *testing.T) {
-	cliCnt := 10
-	managerID := 100
-	msgCnt := 500
-	timeout := 1000
-	testBasic1(t, cliCnt, managerID, msgCnt, timeout)
 }

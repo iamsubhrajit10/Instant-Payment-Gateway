@@ -3,6 +3,7 @@ package config
 import (
 	"log"
 	"os"
+	"path/filepath"
 	"strconv"
 
 	"github.com/joho/godotenv"
@@ -13,12 +14,21 @@ var DebitBankServerPort string
 var CreditBankServerIPV4 string
 var CreditBankServerPort string
 var DebitRetries int
+var Logger *log.Logger
+
+func CreateLog(fileName, header string) *log.Logger {
+	newpath := filepath.Join(".", "log")
+	os.MkdirAll(newpath, os.ModePerm)
+	serverLogFile, _ := os.OpenFile(fileName, os.O_RDWR|os.O_CREATE|os.O_TRUNC, 0666)
+	return log.New(serverLogFile, header, log.Lmicroseconds|log.Lshortfile)
+}
 
 func LoadEnvData() error {
 	// Load the .env file
+	Logger = CreateLog("log/tpg.log", "[TPG]")
 	err := godotenv.Load()
 	if err != nil {
-		log.Fatalf("Error loading .env file")
+		Logger.Fatalf("Error loading .env file")
 		return err
 	}
 
@@ -28,5 +38,6 @@ func LoadEnvData() error {
 	CreditBankServerIPV4 = os.Getenv("CREDITBANKSERVERIPV4")
 	CreditBankServerPort = os.Getenv("CREDITPORT")
 	DebitRetries, _ = strconv.Atoi(os.Getenv("DEBET_RETRIES"))
+
 	return nil
 }

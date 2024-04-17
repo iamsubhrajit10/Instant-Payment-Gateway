@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"flag"
-	"log"
 	"net/http"
 	"time"
 	"tpg/config"
@@ -25,7 +24,7 @@ func getGRPCConnection(address string) (*grpc.ClientConn, error) {
 	if _, ok := GrpcConnectionMap[*addr]; !ok {
 		conn, err := grpc.Dial(*addr, grpc.WithTransportCredentials(insecure.NewCredentials()))
 		if err != nil {
-			//log.Fatalf("did not connect: %v", err)
+			config.Logger.Fatalf("did not connect: %v", err)
 			return nil, err
 		}
 		GrpcConnectionMap[*addr] = conn
@@ -37,7 +36,7 @@ func getGRPCClient(address string) (pb.DetailsClient, error) {
 	if _, ok := GrpcClientMap[address]; !ok {
 		ClientConn, err := getGRPCConnection(address)
 		if err != nil {
-			log.Fatalf("did not connect: %v", err)
+			config.Logger.Fatalf("did not connect: %v", err)
 			return nil, err
 		}
 		c := pb.NewDetailsClient(ClientConn)
@@ -66,10 +65,10 @@ func debitRequest(bankServerIPV4 string, data RequestData) (string, error) {
 
 	res, err := client.UnarryCall(ctx, &pb.Clientmsg{Name: string(jsonString)})
 	if err != nil {
-		log.Fatalf("could not greet: %v", err)
+		config.Logger.Fatalf("could not greet: %v", err)
 		return "Debit Request failed", err
 	}
-	log.Printf("success debit: %s", res.GetMessage())
+	config.Logger.Printf("success debit: %s", res.GetMessage())
 	return "Success", nil
 }
 
@@ -87,10 +86,10 @@ func creditRequest(bankServerIPV4 string, data RequestData) (string, error) {
 
 	r, err := client.UnarryCall(ctx, &pb.Clientmsg{Name: string(jsonString)})
 	if err != nil {
-		log.Fatalf("could not greet: %v", err)
+		config.Logger.Fatalf("could not greet: %v", err)
 		return "", err
 	}
-	log.Printf("Greeting: %s", r.GetMessage())
+	config.Logger.Printf("Greeting: %s", r.GetMessage())
 	return "Success", nil
 }
 
