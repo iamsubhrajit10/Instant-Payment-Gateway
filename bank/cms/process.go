@@ -2,6 +2,8 @@ package cms
 
 import (
 	"bank/config"
+	"bytes"
+	"encoding/json"
 
 	_ "github.com/go-sql-driver/mysql"
 )
@@ -20,6 +22,13 @@ type process struct {
 	accountNumber string
 }
 
+type transactionLog struct {
+	TransactionID string
+	AccountNumber string
+	Amount        int
+	Type          string
+}
+
 func NewProcess(port int, accountNumber string, Type string) (*process, error) {
 	p := &process{port: port, accountNumber: accountNumber, Type: Type}
 	dl, err := NewDislock(port)
@@ -31,11 +40,70 @@ func NewProcess(port int, accountNumber string, Type string) (*process, error) {
 	return p, nil
 }
 
+func (p *process) checkRequest(data RequestData) (string, error) {
+	// Search in ElasticSearch for documents with the same transaction ID and type
+	query := map[string]interface{}{
+		"query": map[string]interface{}{
+			"bool": map[string]interface{}{
+				"must": []interface{}{
+					map[string]interface{}{"term": map[string]interface{}{"TransactionID": data.TransactionID}},
+					map[string]interface{}{"term": map[string]interface{}{"Type": data.Type}},
+				},
+			},
+		},
+	}
+
+	// Convert the query to JSON
+	queryJSON, err := json.Marshal(query)
+	if err != nil {
+		config.Logger.Printf("Error marshaling query: %v", err)
+		return "", err
+	}
+
+	// Search in ElasticSearch
+	res, err := config.Client.Search(
+		config.Client.Search.WithIndex(config.IndexName),
+		config.Client.Search.WithBody(bytes.NewReader(queryJSON)),
+	)
+	if err != nil {
+		config.Logger.Printf("Error searching in ElasticSearch: %v", err)
+		return "", err
+	}
+
+	// Check if any documents were found
+	response := map[string]interface{}{}
+	err_ := json.NewDecoder(res.Body).Decode(&response)
+	if err_ != nil {
+		config.Logger.Print("Error Decoding the response")
+		return "", err_
+	}
+
+	len := len(response["hits"].(map[string]interface{})["hits"].([]interface{}))
+	config.Logger.Printf("Length of the response is %v", len)
+
+	if len > 0 {
+		config.Logger.Printf("Found existing document with the same transaction ID and type")
+		return "Existing document found", nil
+	}
+
+	return "", nil
+}
+
 func (p *process) work(data RequestData) (string, error) {
 	switch data.Type {
 	case "debit":
 		{
 			config.Logger.Printf("Processing debit request: %v", data.AccountNumber)
+			res, err := p.checkRequest(data)
+			if err != nil {
+				config.Logger.Print("Elastic Search is Down")
+				return "Elastic Search is Down", err
+			}
+			if res == "Existing document found" {
+				config.Logger.Printf("Found existing document with the same transaction ID and type")
+				return "Found existing document with the same transaction ID and type", nil
+			}
+
 			err_ := config.DB.Ping()
 			if err_ != nil {
 				config.Logger.Printf("Error connecting to the database: %v", err_)
@@ -68,6 +136,10 @@ func (p *process) work(data RequestData) (string, error) {
 						config.Logger.Fatal(err)
 						return "", err
 					}
+					transactionLog := transactionLog{TransactionID: data.TransactionID, AccountNumber: data.AccountNumber, Amount: data.Amount, Type: data.Type}
+					transactionString, _ := json.Marshal(transactionLog)
+					config.Client.Index(config.IndexName, bytes.NewReader(transactionString))
+
 					return "", nil
 				}
 			}
@@ -78,6 +150,15 @@ func (p *process) work(data RequestData) (string, error) {
 	case "credit":
 		{
 			config.Logger.Printf("Processing credit request: %v", data.AccountNumber)
+			res, err := p.checkRequest(data)
+			if err != nil {
+				config.Logger.Print("Elastic Search is Down")
+				return "Elastic Search is Down", err
+			}
+			if res == "Existing document found" {
+				config.Logger.Printf("Found existing document with the same transaction ID and type")
+				return "Found existing document with the same transaction ID and type", nil
+			}
 			err_ := config.DB.Ping()
 			if err_ != nil {
 				config.Logger.Printf("Error connecting to the database: %v", err_)
@@ -108,6 +189,9 @@ func (p *process) work(data RequestData) (string, error) {
 					config.Logger.Fatal(err)
 					return "", err
 				}
+				transactionLog := transactionLog{TransactionID: data.TransactionID, AccountNumber: data.AccountNumber, Amount: data.Amount, Type: data.Type}
+				transactionString, _ := json.Marshal(transactionLog)
+				config.Client.Index(config.IndexName, bytes.NewReader(transactionString))
 				return "", nil
 			}
 			return "No Records Found", nil
@@ -144,10 +228,16 @@ func (p *process) Run(accountNumber string, Type string, data RequestData) (stri
 		if msg == "No Records Found" {
 			return msg, nil
 		}
+		if msg == "Found existing document with the same transaction ID and type" {
+			return msg, nil
+		}
 		return "Debit Success", nil
 	}
 	if data.Type == "credit" {
 		if msg == "No Records Found" {
+			return msg, nil
+		}
+		if msg == "Found existing document with the same transaction ID and type" {
 			return msg, nil
 		}
 		return "Credit Success", nil

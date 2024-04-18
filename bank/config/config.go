@@ -1,6 +1,8 @@
 package config
 
 import (
+	//"bank/config"
+
 	"database/sql"
 	"fmt"
 	"log"
@@ -10,6 +12,7 @@ import (
 	"strconv"
 	"time"
 
+	"github.com/elastic/go-elasticsearch/v8"
 	_ "github.com/go-sql-driver/mysql"
 	"github.com/joho/godotenv"
 )
@@ -20,10 +23,20 @@ var LeaderPort int
 var IsLeader string
 var ServerID int
 
+var Client *elasticsearch.Client
 var DB *sql.DB
 var msg string
 var err error
 var Logger *log.Logger
+
+var IndexName string
+
+type transactionLog struct {
+	TransactionID string
+	AccountNumber string
+	Amount        int
+	Type          string
+}
 
 func generateRandomID() string {
 	rand.Seed(time.Now().UnixNano())
@@ -53,6 +66,30 @@ func ConnectWithSql() (string, error) {
 	return "Success", nil
 }
 
+func CreateElasticSearchClient() error {
+	// Create a new Elasticsearch client and connect to http://
+	//	Client, err = elasticsearch.NewDefaultClient()
+
+	cfg := elasticsearch.Config{
+		Addresses: []string{
+			"http://localhost:9200",
+		},
+		Username: "elastic",
+		Password: "4LhVyC8-UV+3_gC+o1PU",
+	}
+	Client, err = elasticsearch.NewClient(cfg)
+	if err != nil {
+		Logger.Fatalf("Error creating the client: %s", err)
+		return err
+	}
+	_, err_ := Client.Ping()
+	if err_ != nil {
+		Logger.Fatalf("Error pinging the server: %s", err)
+		return err_
+	}
+	Logger.Println("Successfully connected to Elasticsearch")
+	return nil
+}
 func LoadEnvData() error {
 
 	// Load the .env file
@@ -68,9 +105,12 @@ func LoadEnvData() error {
 	LeaderIPV4 = os.Getenv("LEADERIPV4")
 	LeaderPort, _ = strconv.Atoi(os.Getenv("LEADERPORT"))
 	IsLeader = os.Getenv("ISLEADER")
+	IndexName = os.Getenv("INDEXNAME")
 	ServerID, _ = strconv.Atoi(generateRandomID())
 	Logger.Printf("BANKSERVERPORT: %v", BANKSERVERPORT)
 	msg, err := ConnectWithSql()
+	Logger.Printf("IndexName: %v", IndexName)
+	err = CreateElasticSearchClient()
 	if err != nil {
 		Logger.Fatalf("Error connecting to sql: %v", err)
 	}
