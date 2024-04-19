@@ -4,16 +4,17 @@ import (
 	"context"
 	"encoding/json"
 	"flag"
+	"fmt"
 	"log"
 	"net/http"
 	"time"
 	"tpg/config"
 	pb "tpg/protos"
 	resolverpb "tpg/resolverproto"
+
 	"github.com/labstack/echo/v4"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
-	"fmt"
 )
 
 var (
@@ -26,24 +27,29 @@ var (
 type RequestDataBank struct {
 	TransactionID string
 	AccountNumber string
-	IFSCCode string
-	HolderName string
+	IFSCCode      string
+	HolderName    string
 	Amount        int
 	Type          string
 }
 
 type RequestDataResolver struct {
-	TransactionID string
-	PaymentID	 string
-	Type 		string
+	Requests []struct {
+		TransactionID string
+		PaymentID     string
+		Type          string
+	}
 }
-type ReplyDataResolver struct {	
-    TransactionID  string `json:"TransactionID"`
-    PaymentID      string `json:"PaymentID"`
-    Status         string `json:"Status"`
-    AccountNumber  string `json:"AccountNumber"`
-    IFSCCode       string `json:"IFSCCode"`
-    HolderName     string `json:"HolderName"`
+type ReplyResolver struct {
+	TransactionID string `json:"TransactionID"`
+	PaymentID     string `json:"PaymentID"`
+	Status        string `json:"Status"`
+	AccountNumber string `json:"AccountNumber"`
+	IFSCCode      string `json:"IFSCCode"`
+	HolderName    string `json:"HolderName"`
+}
+type ReplyDataResolver struct {
+	Responses []ReplyResolver
 }
 
 func getGRPCConnection(address string) (*grpc.ClientConn, error) {
@@ -98,8 +104,6 @@ func getGRPCClientResolver(address string) (resolverpb.DetailsClient, error) {
 	return GrpcClientMapRes[address], nil
 }
 
-
-
 func debitRequest(bankServerIPV4 string, data RequestDataBank) (string, error) {
 
 	//defer ClientConn.Close()
@@ -120,25 +124,33 @@ func debitRequest(bankServerIPV4 string, data RequestDataBank) (string, error) {
 	return "Success", nil
 }
 
-func resolveRequest(bankServerIPV4 string, data RequestDataResolver) (string, error) {
-	client, err := getGRPCClientResolver(bankServerIPV4)
+func resolveRequest(resolverServerIPV4 string, data RequestDataResolver) (ReplyDataResolver, error) {
+	// log the data it receives
+	// log.Printf("Data: %v", data)
+	client, err := getGRPCClientResolver(resolverServerIPV4)
 	if err != nil {
-		return "GRPC client not found, resolve failed", err
+		return ReplyDataResolver{}, err
 	}
-	// defer ClientConn.Close()
-	// c := pb.NewDetailsClient(ClientConn)
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
 	defer cancel()
 
 	jsonString, err := json.Marshal(data)
-
+	if err != nil {
+		return ReplyDataResolver{}, err
+	}
+	// log the marshalled data
 	r, err := client.UnarryCall(ctx, &resolverpb.Clientmsg{Name: string(jsonString)})
 	if err != nil {
 		log.Fatalf("could not greet: %v", err)
-		return "", err
+		// return empty ReplyDataResolver and error
+		return ReplyDataResolver{}, err
 	}
-	log.Printf("Greeting: %s", r.GetMessage())
-	return r.GetMessage(), nil
+	var replyData ReplyDataResolver
+	err = json.Unmarshal([]byte(r.GetMessage()), &replyData.Responses)
+	if err != nil {
+		return ReplyDataResolver{}, err
+	}
+	return replyData, nil
 }
 
 func creditRequest(bankServerIPV4 string, data RequestDataBank) (string, error) {
@@ -178,74 +190,34 @@ func TransferHandler(c echo.Context) error {
 	// Get the bank server address
 	debitBankServerIPV4 := config.DebitBankServerIPV4 + ":" + config.DebitBankServerPort
 	// Get the bank server address
-	creitBankServerIPV4 := config.CreditBankServerIPV4 + ":" + config.CreditBankServerPort
+	creditBankServerIPV4 := config.CreditBankServerIPV4 + ":" + config.CreditBankServerPort
 
-	// Create the request data for payer
-	resolveDataPayer := RequestDataResolver{
-		TransactionID: "1",
-		PaymentID: "1",
-		Type: "resolve",
+	// Create an empty RequestDataResolver
+	var resolveData RequestDataResolver
+
+	// Bind the incoming JSON to resolveData
+	if err := c.Bind(&resolveData); err != nil {
+		return err
 	}
 
-	// Create the request data for payee
-	resolveDataPayee := RequestDataResolver{
-		TransactionID: "1",
-		PaymentID: "2",
-		Type: "resolve",
+	// Resolve PaymentIDs
+	replyData, err := resolveRequest(resolverServerIPV4, resolveData)
+	if err != nil {
+		return c.String(http.StatusInternalServerError, fmt.Sprintf("Resolve Failed: %v", err))
 	}
-
-
-	// Create channels to receive the results
-	payerChan := make(chan ReplyDataResolver)
-	payeeChan := make(chan ReplyDataResolver)
-	errChan := make(chan error)
-
-	// Resolve Payer PaymentID in a goroutine
-	go func() {
-		resolverResponsePayer, err := resolveRequest(resolverServerIPV4, resolveDataPayer)
-		if err != nil {
-			errChan <- fmt.Errorf("Payer Resolve Failed: %w", err)
-			return
+	log.Printf("Resolver Response: %v", replyData)
+	var replyResolverPayer ReplyResolver
+	var replyResolverPayee ReplyResolver
+	for _, ReplyResolver := range replyData.Responses {
+		if ReplyResolver.PaymentID == resolveData.Requests[0].PaymentID {
+			replyResolverPayer = ReplyResolver
 		}
-		log.Printf("Payer Response: %s", resolverResponsePayer)
-
-		var replyResolverPayer ReplyDataResolver
-		err = json.Unmarshal([]byte(resolverResponsePayer), &replyResolverPayer)
-		if err != nil {
-			errChan <- fmt.Errorf("Failed to unmarshal response from resolver for payer: %w", err)
-			return
+		if ReplyResolver.PaymentID == resolveData.Requests[1].PaymentID {
+			replyResolverPayee = ReplyResolver
 		}
-		payerChan <- replyResolverPayer
-	}()
-
-	// Resolve Payee PaymentID in a goroutine
-	go func() {
-		resolveResponsePayee, err := resolveRequest(resolverServerIPV4, resolveDataPayee)
-		if err != nil {
-			errChan <- fmt.Errorf("Payee Resolve Failed: %w", err)
-			return
-		}
-		log.Printf("Payee Response: %s", resolveResponsePayee)
-
-		var replyResolverPayee ReplyDataResolver
-		err = json.Unmarshal([]byte(resolveResponsePayee), &replyResolverPayee)
-		if err != nil {
-			errChan <- fmt.Errorf("Failed to unmarshal response from resolver for payee: %w", err)
-			return
-		}
-		payeeChan <- replyResolverPayee
-	}()
-
-	// Wait for both goroutines to finish
-	replyResolverPayer, replyResolverPayee := <-payerChan, <-payeeChan
-
-	// Check for errors
-	select {
-	case err := <-errChan:
-		return c.String(http.StatusInternalServerError, err.Error())
-	default:
-		// Continue with your code
 	}
+	log.Printf("Payer: %v", replyResolverPayer)
+	log.Printf("Payee: %v", replyResolverPayee)
 
 	// check if the account number is not found for any of the parties
 	if replyResolverPayer.Status == "not found" {
@@ -262,18 +234,18 @@ func TransferHandler(c echo.Context) error {
 		debitData := RequestDataBank{
 			TransactionID: replyResolverPayer.TransactionID,
 			AccountNumber: replyResolverPayer.AccountNumber,
-			IFSCCode: replyResolverPayer.IFSCCode,
-			HolderName: replyResolverPayer.HolderName,
-			Amount: 100,
-			Type: "debit",
+			IFSCCode:      replyResolverPayer.IFSCCode,
+			HolderName:    replyResolverPayer.HolderName,
+			Amount:        100,
+			Type:          "debit",
 		}
 		creditData := RequestDataBank{
 			TransactionID: replyResolverPayee.TransactionID,
 			AccountNumber: replyResolverPayee.AccountNumber,
-			IFSCCode: replyResolverPayee.IFSCCode,
-			HolderName: replyResolverPayee.HolderName,
-			Amount: 100,
-			Type: "credit",
+			IFSCCode:      replyResolverPayee.IFSCCode,
+			HolderName:    replyResolverPayee.HolderName,
+			Amount:        100,
+			Type:          "credit",
 		}
 		// Debit the payer and credit the payee
 		x, err := debitRequest(debitBankServerIPV4, debitData)
@@ -282,15 +254,15 @@ func TransferHandler(c echo.Context) error {
 			if msg == "Failed" {
 				return c.String(http.StatusInternalServerError, "Debit Failed")
 			}
-			_, err_ := creditRequest(creitBankServerIPV4, creditData)
+			_, err_ := creditRequest(creditBankServerIPV4, creditData)
 			if err_ != nil {
 				return c.String(http.StatusInternalServerError, "Credit Failed")
 			}
 			return c.String(http.StatusOK, "Transfer Successful")
 		}
 		log.Printf("Debit: %s", x)
-		_, err_ := creditRequest(creitBankServerIPV4, creditData)
-	
+		_, err_ := creditRequest(creditBankServerIPV4, creditData)
+
 		if err_ != nil {
 			return c.String(http.StatusInternalServerError, "Credit Failed")
 		}

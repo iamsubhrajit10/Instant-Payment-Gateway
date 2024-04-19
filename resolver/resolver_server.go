@@ -42,13 +42,13 @@ type server struct {
 	pb.UnimplementedDetailsServer
 }
 
-type RequestData struct {
+type Request struct {
 	TransactionID string
 	PaymentID     string
 	Type          string
 }
 
-type ReplyData struct {
+type Reply struct {
 	TransactionID string `json:"TransactionID"`
 	PaymentID     string `json:"PaymentID"`
 	Status        string `json:"Status"`
@@ -57,46 +57,57 @@ type ReplyData struct {
 	HolderName    string `json:"HolderName"`
 }
 
-func processResolveRequest(data RequestData) (ReplyData, error) {
-	var reply ReplyData
-	reply.TransactionID = data.TransactionID
-	reply.PaymentID = data.PaymentID
+type RequestData struct {
+	Requests []Request
+}
 
-	// Query the database for the bank details
-	row := db.QueryRow("SELECT AccountNumber, IFSCCode, HolderName FROM bank_details WHERE PaymentID = ?", data.PaymentID)
-	err := row.Scan(&reply.AccountNumber, &reply.IFSCCode, &reply.HolderName)
-	if err != nil {
-		if err == sql.ErrNoRows {
-			// No results, set status to "not found" and fill other fields with identifiable string
-			reply.Status = "not found"
-			reply.AccountNumber = "N/A"
-			reply.IFSCCode = "N/A"
-			reply.HolderName = "N/A"
+type ReplyDataResolver struct {
+	Responses []Reply
+}
+
+func processResolveRequest(data RequestData) ([]Reply, error) {
+	var Responses []Reply
+	for _, request := range data.Requests {
+		var reply Reply
+		reply.TransactionID = request.TransactionID
+		reply.PaymentID = request.PaymentID
+
+		// Query the database for the bank details
+		row := db.QueryRow("SELECT AccountNumber, IFSCCode, HolderName FROM bank_details WHERE PaymentID = ?", request.PaymentID)
+		err := row.Scan(&reply.AccountNumber, &reply.IFSCCode, &reply.HolderName)
+		if err != nil {
+			if err == sql.ErrNoRows {
+				// No results, set status to "not found" and fill other fields with identifiable string
+				reply.Status = "not found"
+				reply.AccountNumber = "N/A"
+				reply.IFSCCode = "N/A"
+				reply.HolderName = "N/A"
+			} else {
+				// Some other error occurred
+				return nil, err
+			}
 		} else {
-			// Some other error occurred
-			return ReplyData{}, err
+			// Results found, set status to "found"
+			reply.Status = "found"
 		}
-	} else {
-		// Results found, set status to "found"
-		reply.Status = "found"
+		Responses = append(Responses, reply)
 	}
-	return reply, nil
+	return Responses, nil
 }
 
 func processGRPCMessage(msg string) (string, error) {
-	// log.Printf("Processing message: %v", msg)
 	var data RequestData
 	err := json.Unmarshal([]byte(msg), &data)
 	if err != nil {
 		return "", err
 	}
-	if data.Type == "resolve" {
-		var reply ReplyData
-		reply, err := processResolveRequest(data)
+	if data.Requests[0].Type == "resolve" {
+		var Responses []Reply
+		Responses, err := processResolveRequest(data)
 		if err != nil {
 			return "", err
 		}
-		replyJSON, err := json.Marshal(reply)
+		replyJSON, err := json.Marshal(Responses)
 		if err != nil {
 			return "", err
 		}
@@ -105,7 +116,7 @@ func processGRPCMessage(msg string) (string, error) {
 	return "", nil
 }
 
-// SayHello implements helloworld.GreeterServer
+// UnarryCall implements helloworld.GreeterServer
 func (s *server) UnarryCall(ctx context.Context, in *pb.Clientmsg) (*pb.Servermsg, error) {
 	// Create a channel to communicate the result from the goroutine
 	resultChan := make(chan *pb.Servermsg)
