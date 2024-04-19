@@ -51,9 +51,11 @@ type CentLockMangStruct struct {
 	clm *cms.CentLockMang
 }
 
-type RequestData struct {
+type RequestDataBank struct {
 	TransactionID string
 	AccountNumber string
+	IFSCCode      string
+	HolderName    string
 	Amount        int
 	Type          string
 }
@@ -64,7 +66,7 @@ func generateProcessId() string {
 	return fmt.Sprintf("%06d", rand.Intn(1000000))
 }
 
-func processDebitRequest(RequestData RequestData) (string, error) {
+func processDebitRequest(RequestData RequestDataBank) (string, error) {
 
 	config.Logger.Printf("Processing debit request: %v", RequestData)
 
@@ -74,7 +76,7 @@ func processDebitRequest(RequestData RequestData) (string, error) {
 		return "", err
 	}
 
-	msg, err_ := p.Run(RequestData.AccountNumber, RequestData.Type, cms.RequestData(RequestData))
+	msg, err_ := p.Run(RequestData.AccountNumber, RequestData.Type, cms.RequestDataBank(RequestData))
 	if err_ != nil {
 		config.Logger.Printf("Debit request for transaction id %v failed with error: %v.\n", RequestData.TransactionID, err_.Error())
 		return "", err_
@@ -88,7 +90,7 @@ func processDebitRequest(RequestData RequestData) (string, error) {
 	return "Debit request processed", nil
 }
 
-func processCreditRequest(RequestData RequestData) (string, error) {
+func processCreditRequest(RequestData RequestDataBank) (string, error) {
 	config.Logger.Printf("Processing credit request: %v", RequestData)
 	p, err := cms.NewProcess(config.LeaderPort, RequestData.AccountNumber, RequestData.Type)
 	if err != nil {
@@ -96,7 +98,7 @@ func processCreditRequest(RequestData RequestData) (string, error) {
 		return "", err
 	}
 
-	msg, err_ := p.Run(RequestData.AccountNumber, RequestData.Type, cms.RequestData(RequestData))
+	msg, err_ := p.Run(RequestData.AccountNumber, RequestData.Type, cms.RequestDataBank(RequestData))
 	if err_ != nil {
 		config.Logger.Printf("Credit request for transaction id %v failed with error: %v.\n", RequestData.TransactionID, err_.Error())
 		return "", err_
@@ -110,7 +112,7 @@ func processCreditRequest(RequestData RequestData) (string, error) {
 	return "Credit request processed", nil
 }
 
-func processReverseRequest(RequestData RequestData) (string, error) {
+func processReverseRequest(RequestData RequestDataBank) (string, error) {
 	config.Logger.Printf("Processing reverse request: %v", RequestData)
 	return "Reverse request processed", nil
 }
@@ -118,7 +120,7 @@ func processReverseRequest(RequestData RequestData) (string, error) {
 func processGRPCMessage(msg string) (string, error) {
 
 	config.Logger.Printf("Processing message: %v", msg)
-	var data RequestData
+	var data RequestDataBank
 	err := json.Unmarshal([]byte(msg), &data)
 	if err != nil {
 		return "", err

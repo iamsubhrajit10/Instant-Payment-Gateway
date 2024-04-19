@@ -23,6 +23,9 @@ func CreateLog(fileName, header string) *log.Logger {
 	return log.New(serverLogFile, header, log.Lmicroseconds|log.Lshortfile)
 }
 
+var ResolverServerPort string
+var ResolverServerIPV4 string
+
 func LoadEnvData() error {
 	// Load the .env file
 	Logger = CreateLog("log/tpg.log", "[TPG]")
@@ -33,6 +36,8 @@ func LoadEnvData() error {
 	}
 
 	// Get the environment variables
+	ResolverServerPort = os.Getenv("RESOLVER_SERVER_PORT")
+	ResolverServerIPV4 = os.Getenv("RESOLVER_SERVER_IPV4")
 	DebitBankServerIPV4 = os.Getenv("DEBITBANKSERVERIPV4")
 	DebitBankServerPort = os.Getenv("DEBITPORT")
 	CreditBankServerIPV4 = os.Getenv("CREDITBANKSERVERIPV4")

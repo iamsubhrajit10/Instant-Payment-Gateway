@@ -8,9 +8,11 @@ import (
 	_ "github.com/go-sql-driver/mysql"
 )
 
-type RequestData struct {
+type RequestDataBank struct {
 	TransactionID string
 	AccountNumber string
+	IFSCCode      string
+	HolderName    string
 	Amount        int
 	Type          string
 }
@@ -40,7 +42,7 @@ func NewProcess(port int, accountNumber string, Type string) (*process, error) {
 	return p, nil
 }
 
-func (p *process) checkRequest(data RequestData) (string, error) {
+func (p *process) checkRequest(data RequestDataBank) (string, error) {
 	// Search in ElasticSearch for documents with the same transaction ID and type
 	query := map[string]interface{}{
 		"query": map[string]interface{}{
@@ -89,7 +91,7 @@ func (p *process) checkRequest(data RequestData) (string, error) {
 	return "", nil
 }
 
-func (p *process) work(data RequestData) (string, error) {
+func (p *process) work(data RequestDataBank) (string, error) {
 	switch data.Type {
 	case "debit":
 		{
@@ -200,7 +202,7 @@ func (p *process) work(data RequestData) (string, error) {
 	return "", nil
 }
 
-func (p *process) Run(accountNumber string, Type string, data RequestData) (string, error) {
+func (p *process) Run(accountNumber string, Type string, data RequestDataBank) (string, error) {
 
 	config.Logger.Printf("request data: %v\n", data)
 	var err error
