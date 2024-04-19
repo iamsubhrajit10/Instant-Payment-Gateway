@@ -21,6 +21,7 @@ package main
 
 import (
 	"context"
+	"database/sql"
 	"encoding/json"
 	"flag"
 	"fmt"
@@ -28,8 +29,8 @@ import (
 	"net"
 	"resolver/config"
 	pb "resolver/resolverproto"
-	"database/sql"
-    _ "github.com/mattn/go-sqlite3"
+
+	_ "github.com/mattn/go-sqlite3"
 	"google.golang.org/grpc"
 )
 
@@ -43,47 +44,47 @@ type server struct {
 
 type RequestData struct {
 	TransactionID string
-	PaymentID string
-	Type string
+	PaymentID     string
+	Type          string
 }
 
 type ReplyData struct {
-	TransactionID  string `json:"TransactionID"`
-	PaymentID      string `json:"PaymentID"`
-	Status         string `json:"Status"`
-	AccountNumber  string `json:"AccountNumber"`
-	IFSCCode       string `json:"IFSCCode"`
-	HolderName     string `json:"HolderName"`
+	TransactionID string `json:"TransactionID"`
+	PaymentID     string `json:"PaymentID"`
+	Status        string `json:"Status"`
+	AccountNumber string `json:"AccountNumber"`
+	IFSCCode      string `json:"IFSCCode"`
+	HolderName    string `json:"HolderName"`
 }
 
 func processResolveRequest(data RequestData) (ReplyData, error) {
-    var reply ReplyData
-    reply.TransactionID = data.TransactionID
-    reply.PaymentID = data.PaymentID
+	var reply ReplyData
+	reply.TransactionID = data.TransactionID
+	reply.PaymentID = data.PaymentID
 
-    // Query the database for the bank details
-    row := db.QueryRow("SELECT AccountNumber, IFSCCode, HolderName FROM bank_details WHERE PaymentID = ?", data.PaymentID)
-    err := row.Scan(&reply.AccountNumber, &reply.IFSCCode, &reply.HolderName)
-    if err != nil {
-        if err == sql.ErrNoRows {
-            // No results, set status to "not found" and fill other fields with identifiable string
-            reply.Status = "not found"
-            reply.AccountNumber = "N/A"
-            reply.IFSCCode = "N/A"
-            reply.HolderName = "N/A"
-        } else {
-            // Some other error occurred
-            return ReplyData{}, err
-        }
-    } else {
-        // Results found, set status to "found"
-        reply.Status = "found"
-    }
-    return reply, nil
+	// Query the database for the bank details
+	row := db.QueryRow("SELECT AccountNumber, IFSCCode, HolderName FROM bank_details WHERE PaymentID = ?", data.PaymentID)
+	err := row.Scan(&reply.AccountNumber, &reply.IFSCCode, &reply.HolderName)
+	if err != nil {
+		if err == sql.ErrNoRows {
+			// No results, set status to "not found" and fill other fields with identifiable string
+			reply.Status = "not found"
+			reply.AccountNumber = "N/A"
+			reply.IFSCCode = "N/A"
+			reply.HolderName = "N/A"
+		} else {
+			// Some other error occurred
+			return ReplyData{}, err
+		}
+	} else {
+		// Results found, set status to "found"
+		reply.Status = "found"
+	}
+	return reply, nil
 }
 
 func processGRPCMessage(msg string) (string, error) {
-	log.Printf("Processing message: %v", msg)
+	// log.Printf("Processing message: %v", msg)
 	var data RequestData
 	err := json.Unmarshal([]byte(msg), &data)
 	if err != nil {

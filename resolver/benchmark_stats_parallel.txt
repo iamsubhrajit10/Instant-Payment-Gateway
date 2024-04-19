@@ -1,0 +1,1 @@
+Min: 1, Max: 111847, Avg: 4, Median: 1
