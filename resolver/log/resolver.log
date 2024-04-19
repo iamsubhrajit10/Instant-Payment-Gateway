@@ -1,0 +1,8 @@
+[RESOLVER]17:17:16.864640 resolver_server.go:151: server listening at [::]:3000
+[RESOLVER]17:17:16.864763 resolver_server.go:152: server going to listen at 3000
+[RESOLVER]17:17:33.700159 resolver_server.go:115: Received: {"TransactionID":"1","PaymentID":"2","Type":"resolve"}
+[RESOLVER]17:17:33.700465 resolver_server.go:86: Processing message: {"TransactionID":"1","PaymentID":"2","Type":"resolve"}
+[RESOLVER]17:17:33.706775 resolver_server.go:121: Sending: {"TransactionID":"1","PaymentID":"2","Status":"found","AccountNumber":"12345678902","IFSCCode":"IFSC0002","HolderName":"Holder2"}
+[RESOLVER]17:17:33.741929 resolver_server.go:115: Received: {"TransactionID":"1","PaymentID":"1","Type":"resolve"}
+[RESOLVER]17:17:33.742341 resolver_server.go:86: Processing message: {"TransactionID":"1","PaymentID":"1","Type":"resolve"}
+[RESOLVER]17:17:33.743804 resolver_server.go:121: Sending: {"TransactionID":"1","PaymentID":"1","Status":"found","AccountNumber":"12345678901","IFSCCode":"IFSC0001","HolderName":"Holder1"}

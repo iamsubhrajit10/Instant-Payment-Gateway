@@ -114,7 +114,7 @@ func (p *process) work(data RequestDataBank) (string, error) {
 					return msg, err
 				}
 			}
-			results, err := config.DB.Query("SELECT Amount FROM bank_details WHERE Account_number = ?", data.AccountNumber)
+			results, err := config.DB.Query("SELECT Amount FROM bank_details WHERE AccountNumber = ?", data.AccountNumber)
 			if err != nil {
 				config.Logger.Fatal(err)
 				return "", err
@@ -133,7 +133,7 @@ func (p *process) work(data RequestDataBank) (string, error) {
 					return "Insufficient balance", nil
 				} else {
 					amount = amount - data.Amount
-					_, err := config.DB.Exec("UPDATE bank_details SET Amount = ? WHERE Account_number = ?", amount, data.AccountNumber)
+					_, err := config.DB.Exec("UPDATE bank_details SET Amount = ? WHERE AccountNumber = ?", amount, data.AccountNumber)
 					if err != nil {
 						config.Logger.Fatal(err)
 						return "", err
@@ -171,7 +171,7 @@ func (p *process) work(data RequestDataBank) (string, error) {
 			}
 			// handle error
 
-			results, err := config.DB.Query("SELECT Amount FROM bank_details WHERE Account_number = ?", data.AccountNumber)
+			results, err := config.DB.Query("SELECT Amount FROM bank_details WHERE AccountNumber = ?", data.AccountNumber)
 			if err != nil {
 				config.Logger.Fatal(err)
 				return "", err
@@ -186,7 +186,7 @@ func (p *process) work(data RequestDataBank) (string, error) {
 					return "", err
 				}
 				amount = amount + data.Amount
-				_, err := config.DB.Exec("UPDATE bank_details SET Amount = ? WHERE Account_number = ?", amount, data.AccountNumber)
+				_, err := config.DB.Exec("UPDATE bank_details SET Amount = ? WHERE AccountNumber = ?", amount, data.AccountNumber)
 				if err != nil {
 					config.Logger.Fatal(err)
 					return "", err
