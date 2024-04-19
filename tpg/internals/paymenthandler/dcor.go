@@ -7,21 +7,25 @@ import (
 	"fmt"
 	"log"
 	"net/http"
-	"time"
 	"tpg/config"
 	pb "tpg/protos"
 	resolverpb "tpg/resolverproto"
 
 	"github.com/labstack/echo/v4"
+	"golang.org/x/time/rate"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
 )
 
 var (
-	GrpcClientMap        = make(map[string]pb.DetailsClient)
-	GrpcConnectionMap    = make(map[string]*grpc.ClientConn)
-	GrpcConnectionMapRes = make(map[string]*grpc.ClientConn)
-	GrpcClientMapRes     = make(map[string]resolverpb.DetailsClient)
+	GrpcClientMap            = make(map[string]pb.DetailsClient)
+	GrpcConnectionMap        = make(map[string]*grpc.ClientConn)
+	GrpcConnectionMapRes     = make(map[string]*grpc.ClientConn)
+	GrpcClientMapRes         = make(map[string]resolverpb.DetailsClient)
+	successfulRequests   int = 0
+	debitLimiter             = rate.NewLimiter(2000, 4000) // 1000 requests per second, with a burst limit of 2000 requests
+	creditLimiter            = rate.NewLimiter(2000, 4000) // 1000 requests per second, with a burst limit of 2000 requests
+	resolveLimiter           = rate.NewLimiter(2000, 4000) // 1000 requests per second, with a burst limit of 2000 requests
 )
 
 type RequestDataBank struct {
@@ -111,8 +115,11 @@ func debitRequest(bankServerIPV4 string, data RequestDataBank) (string, error) {
 	if err != nil {
 		return "GRPC client not found, debit failed", err
 	}
-	ctx, _ := context.WithTimeout(context.Background(), time.Second)
-	//defer cancel()
+	ctx := context.Background()
+	if err := debitLimiter.Wait(ctx); err != nil {
+		return "Rate limit exceeded", err
+	}
+
 	jsonString, err := json.Marshal(data)
 
 	res, err := client.UnarryCall(ctx, &pb.Clientmsg{Name: string(jsonString)})
@@ -131,8 +138,10 @@ func resolveRequest(resolverServerIPV4 string, data RequestDataResolver) (ReplyD
 	if err != nil {
 		return ReplyDataResolver{}, err
 	}
-	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
-	defer cancel()
+	ctx := context.Background()
+	if err := resolveLimiter.Wait(ctx); err != nil {
+		return ReplyDataResolver{}, err
+	}
 
 	jsonString, err := json.Marshal(data)
 	if err != nil {
@@ -160,8 +169,10 @@ func creditRequest(bankServerIPV4 string, data RequestDataBank) (string, error) 
 	}
 	// defer ClientConn.Close()
 	// c := pb.NewDetailsClient(ClientConn)
-	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
-	defer cancel()
+	ctx := context.Background()
+	if err := creditLimiter.Wait(ctx); err != nil {
+		return "Rate limit exceeded", err
+	}
 
 	jsonString, err := json.Marshal(data)
 
@@ -266,6 +277,8 @@ func TransferHandler(c echo.Context) error {
 		if err_ != nil {
 			return c.String(http.StatusInternalServerError, "Credit Failed")
 		}
+		successfulRequests++
+		log.Printf("Successful Requests: %d", successfulRequests)
 		return c.String(http.StatusOK, "Transfer Successful")
 	}
 	return c.String(http.StatusInternalServerError, "Transfer Failed")
