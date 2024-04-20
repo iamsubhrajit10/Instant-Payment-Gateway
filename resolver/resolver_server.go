@@ -120,24 +120,25 @@ func processGRPCMessage(msg string) (string, error) {
 }
 
 // UnarryCall implements helloworld.GreeterServer
+// UnarryCall implements helloworld.GreeterServer
 func (s *server) UnarryCall(ctx context.Context, in *pb.Clientmsg) (*pb.Servermsg, error) {
-	// Create a channel to communicate the result from the goroutine
+	// Create channels to communicate the result and errors from goroutines
 	resultChan := make(chan *pb.Servermsg)
 	errorChan := make(chan error)
 
-	// Start a new goroutine to process the gRPC message
-	go func() {
+	// Start a new goroutine to process each gRPC message concurrently
+	go func(msg string) {
 		log.Printf("Received: %v", in.GetName())
-		msg, err := processGRPCMessage(in.GetName())
+		msg, err := processGRPCMessage(msg)
 		if err != nil {
 			errorChan <- err
 			return
 		}
 		log.Printf("Sending: %v", msg)
 		resultChan <- &pb.Servermsg{Message: msg}
-	}()
+	}(in.GetName())
 
-	// Wait for the result from the goroutine
+	// Wait for the result from the goroutines
 	select {
 	case result := <-resultChan:
 		return result, nil
@@ -145,7 +146,6 @@ func (s *server) UnarryCall(ctx context.Context, in *pb.Clientmsg) (*pb.Serverms
 		return &pb.Servermsg{Message: "Error processing message"}, err
 	}
 }
-
 func main() {
 	config.LoadEnvData()
 	// open the bank_details database
