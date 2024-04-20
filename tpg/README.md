@@ -1,26 +1,10 @@
-## Run three instances of the server
-make new build if you have changes
-```bash
-go build
-```
+## How to run three instances of transaction-processing-gateway?
 
-run `start.sh` file
+get docker image ready
 ```bash
-./start.sh
+docker build -t tpg:latest .
 ```
-
-## How to run the nginx server?
-generate config file for your private ip
+run three instances of this container
 ```bash
-./make_conf.sh
-```
-ps: make sure you have proper permissions
-
-docker build the image
-```bash
-docker build -t loadbalancer:latest .
-```
-run the container with the image made
-```bash
-docker run -p 80:80 loadbalancer:latest
+./duplicate_container.sh
 ```
