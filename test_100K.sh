@@ -1,5 +1,8 @@
 #!/bin/bash
 
+# Install pv if not already available (adjust package manager based on your system)
+# sudo apt install pv  # For Debian/Ubuntu based systems
+
 # The URL of your server
 url="http://localhost:8000/transfer"
 
@@ -18,32 +21,19 @@ content_type="Content-Type: application/json"
 # Get the start time
 start_time=$(date +%s)
 
-# Send the requests
-for ((i=1; i<=total_requests; i++)); do
-    # Calculate the PaymentID for the first and second transaction in this request
+# Limit rate to 1000 requests per second with pv
+seq 1 $total_requests | pv -L 4000 | xargs -I {} -P 4000 bash -c '
+    i=$1
     payment_id_1=$((2*i-1))
     payment_id_2=$((2*i))
-
-    # The data for the request
     data="{\"Requests\":[{\"TransactionID\":\"$i\",\"PaymentID\":\"$payment_id_1\",\"Type\":\"resolve\"},{\"TransactionID\":\"$i\",\"PaymentID\":\"$payment_id_2\",\"Type\":\"resolve\"}]}"
-
-    # Send the request and get the response in the background
-    {
-        response=$(curl -s -X POST -H "$content_type" -d "$data" "$url")
-
-        # Check if the response is empty
-        if [ -z "$response" ]; then
-            echo -e "Count: $i, Empty response" >> output_test_2K.txt
-            exit 1
-        fi
-
-        # Print the count and the response
-        echo -e "Count: $i, Response: $response\n" >> output_test_2K.txt
-    } &
-done
-
-# Wait for all background jobs to finish
-wait
+    response=$(curl -s -X POST -H "'"$content_type"'" -d "$data" "'"$url"'")
+    if [ -z "$response" ]; then
+        echo -e "Count: $i, Empty response" >> output_test_2K.txt
+        exit 1
+    fi
+    echo -e "Count: $i, Response: $response\n" >> output_test_2K.txt
+' _ {}
 
 # Get the end time
 end_time=$(date +%s)

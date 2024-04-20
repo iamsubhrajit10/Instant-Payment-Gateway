@@ -28,8 +28,10 @@ import (
 	"fmt"
 	"log"
 	"net"
+	"time"
 
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/keepalive"
 )
 
 var port *int
@@ -119,7 +121,19 @@ func main() {
 	if err != nil {
 		log.Fatalf("failed to listen: %v", err)
 	}
-	s := grpc.NewServer()
+
+	// Create a keepalive policy
+	ka := keepalive.EnforcementPolicy{
+		MinTime:             10 * time.Second, // Minimum time a client should wait before sending a keepalive
+		PermitWithoutStream: true,             // Allow keepalive without active RPCs
+	}
+
+	// Create a server option to set the keepalive policy
+	kaOption := grpc.KeepaliveEnforcementPolicy(ka)
+
+	// Create the gRPC server with the keepalive option
+	s := grpc.NewServer(kaOption)
+
 	pb.RegisterDetailsServer(s, &server{})
 	log.Printf("server listening at %v", lis.Addr())
 	if err := s.Serve(lis); err != nil {
