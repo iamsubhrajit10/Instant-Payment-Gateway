@@ -25,6 +25,8 @@ var ServerID int
 
 var Client *elasticsearch.Client
 var DB *sql.DB
+var DB2 *sql.DB
+var DB3 *sql.DB
 var msg string
 var err error
 var Logger *log.Logger
@@ -51,14 +53,16 @@ func CreateLog(fileName, header string) *log.Logger {
 }
 
 func ConnectWithSql() (string, error) {
-	DB, err = sql.Open("mysql", "root:root@tcp(127.0.0.1:3306)/upi")
-	if err != nil {
+	DB, err1 := sql.Open("mysql", "root:root@tcp(127.0.0.1:3306)/upi")
+	DB2, err2 := sql.Open("mysql", "root:root@tcp(127.0.0.1:3307)/upi")
+	DB3, err3 := sql.Open("mysql", "root:root@tcp(127.0.0.1:3308)/upi")
+	if err1 != nil || err2 != nil || err3 != nil {
 		Logger.Fatal(err)
 		return "", err
 	}
 
-	err = DB.Ping()
-	if err != nil {
+	err1, err2, err3 = DB.Ping(), DB2.Ping(), DB3.Ping()
+	if err1 != nil || err2 != nil || err3 != nil {
 		Logger.Fatal(err)
 		return "", err
 	}
@@ -108,7 +112,7 @@ func LoadEnvData() error {
 	IndexName = os.Getenv("INDEXNAME")
 	ServerID, _ = strconv.Atoi(generateRandomID())
 	Logger.Printf("BANKSERVERPORT: %v", BANKSERVERPORT)
-	msg, err := ConnectWithSql()
+	msg, _ := ConnectWithSql()
 	Logger.Printf("IndexName: %v", IndexName)
 	err = CreateElasticSearchClient()
 	if err != nil {

@@ -4,6 +4,7 @@ import (
 	"bank/config"
 	"bytes"
 	"encoding/json"
+	"strconv"
 
 	_ "github.com/go-sql-driver/mysql"
 )
@@ -92,6 +93,26 @@ func (p *process) checkRequest(data RequestDataBank) (string, error) {
 }
 
 func (p *process) work(data RequestDataBank) (string, error) {
+	db1 := config.DB
+	db2 := config.DB2
+	db3 := config.DB3
+	db := db1
+
+	acc, err := strconv.Atoi(data.AccountNumber)
+	if err != nil {
+		config.Logger.Printf("Error converting account number to integer: %v", err)
+		return "", err
+	}
+	remains := acc % 3
+	switch remains {
+	case 0:
+		db = db1
+	case 1:
+		db = db2
+	case 2:
+		db = db3
+	}
+
 	switch data.Type {
 	case "debit":
 		{
@@ -106,7 +127,7 @@ func (p *process) work(data RequestDataBank) (string, error) {
 				return "Found existing document with the same transaction ID and type", nil
 			}
 
-			err_ := config.DB.Ping()
+			err_ := db.Ping()
 			if err_ != nil {
 				config.Logger.Printf("Error connecting to the database: %v", err_)
 				msg, err := config.ConnectWithSql()
@@ -114,7 +135,7 @@ func (p *process) work(data RequestDataBank) (string, error) {
 					return msg, err
 				}
 			}
-			results, err := config.DB.Query("SELECT Amount FROM bank_details WHERE AccountNumber = ?", data.AccountNumber)
+			results, err := db.Query("SELECT Amount FROM bank_details WHERE AccountNumber = ?", data.AccountNumber)
 			if err != nil {
 				config.Logger.Fatal(err)
 				return "", err
@@ -133,7 +154,7 @@ func (p *process) work(data RequestDataBank) (string, error) {
 					return "Insufficient balance", nil
 				} else {
 					amount = amount - data.Amount
-					_, err := config.DB.Exec("UPDATE bank_details SET Amount = ? WHERE AccountNumber = ?", amount, data.AccountNumber)
+					_, err := db.Exec("UPDATE bank_details SET Amount = ? WHERE AccountNumber = ?", amount, data.AccountNumber)
 					if err != nil {
 						config.Logger.Fatal(err)
 						return "", err
@@ -161,7 +182,7 @@ func (p *process) work(data RequestDataBank) (string, error) {
 				config.Logger.Printf("Found existing document with the same transaction ID and type")
 				return "Found existing document with the same transaction ID and type", nil
 			}
-			err_ := config.DB.Ping()
+			err_ := db.Ping()
 			if err_ != nil {
 				config.Logger.Printf("Error connecting to the database: %v", err_)
 				msg, err := config.ConnectWithSql()
@@ -171,7 +192,7 @@ func (p *process) work(data RequestDataBank) (string, error) {
 			}
 			// handle error
 
-			results, err := config.DB.Query("SELECT Amount FROM bank_details WHERE AccountNumber = ?", data.AccountNumber)
+			results, err := db.Query("SELECT Amount FROM bank_details WHERE AccountNumber = ?", data.AccountNumber)
 			if err != nil {
 				config.Logger.Fatal(err)
 				return "", err
@@ -186,7 +207,7 @@ func (p *process) work(data RequestDataBank) (string, error) {
 					return "", err
 				}
 				amount = amount + data.Amount
-				_, err := config.DB.Exec("UPDATE bank_details SET Amount = ? WHERE AccountNumber = ?", amount, data.AccountNumber)
+				_, err := db.Exec("UPDATE bank_details SET Amount = ? WHERE AccountNumber = ?", amount, data.AccountNumber)
 				if err != nil {
 					config.Logger.Fatal(err)
 					return "", err
