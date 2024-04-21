@@ -26,6 +26,14 @@ http {
             # Replace localhost:50051 with the address and port of your gRPC server
             # The 'grpc://' prefix is optional; unencrypted gRPC is the default
             grpc_pass grpc://grpcservers;
+
+
+            # kill cache
+            add_header Last-Modified $date_gmt;
+            add_header Cache-Control 'no-store, no-cache, must-revalidate, proxy-revalidate, max-age=0';
+            if_modified_since off;
+            expires off;
+            etag off;
         }
     }
 }
