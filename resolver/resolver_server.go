@@ -160,17 +160,26 @@ func main() {
 	if err != nil {
 		log.Fatalf("failed to listen: %v", err)
 	}
-	// Create a keepalive policy
-	ka := keepalive.EnforcementPolicy{
-		MinTime:             10 * time.Second, // Minimum time a client should wait before sending a keepalive
-		PermitWithoutStream: true,             // Allow keepalive without active RPCs
+	// Set keepalive server parameters
+	ka := keepalive.ServerParameters{
+		MaxConnectionAge:      time.Second * 30,
+		MaxConnectionAgeGrace: time.Second * 10,
+		Time:                  time.Second * 10,
+		Timeout:               time.Second * 5,
 	}
 
-	// Create a server option to set the keepalive policy
-	kaOption := grpc.KeepaliveEnforcementPolicy(ka)
+	// Set keepalive enforcement policy
+	kep := keepalive.EnforcementPolicy{
+		MinTime:             time.Second * 10, // Minimum amount of time a client should wait before sending a keepalive
+		PermitWithoutStream: true,             // Allow pings even when there are no active streams
+	}
 
-	// Create the gRPC server with the keepalive option
-	s := grpc.NewServer(kaOption)
+	// Create server options to set the keepalive policy
+	kaOption := grpc.KeepaliveParams(ka)
+	kepOption := grpc.KeepaliveEnforcementPolicy(kep)
+
+	// Create the gRPC server with the keepalive options
+	s := grpc.NewServer(kaOption, kepOption)
 
 	pb.RegisterDetailsServer(s, &server{})
 	log.Printf("server listening at %v", lis.Addr())

@@ -1,9 +1,9 @@
 #!/bin/bash
 
 url="http://localhost:80/transfer"  # Replace with your server URL
-total_requests=4 # Total number of requests
-duration=1000  # Duration in seconds
-threads=8  # Number of threads
+total_requests=1000 # Total number of requests
+duration=600 # Duration in seconds
+threads=4  # Number of threads
 
 # Generate a Lua script for wrk
 lua_script="wrk_script.lua"
