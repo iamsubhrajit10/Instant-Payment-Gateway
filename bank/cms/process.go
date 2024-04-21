@@ -147,10 +147,12 @@ func CreditProcessing(port int) {
 			continue
 			//return nil, err
 		}
+		err1 := config.DB.Ping()
+		err2 := config.DB2.Ping()
+		err3 := config.DB3.Ping()
 
-		err_ := config.DB.Ping()
-		if err_ != nil {
-			config.Logger.Printf("Error connecting to the database: %v", err_)
+		if err1 != nil || err2 != nil || err3 != nil {
+			config.Logger.Printf("Error connecting to the database: %v", err1)
 			_, err := config.ConnectWithSql()
 			if err != nil {
 				continue
@@ -161,11 +163,26 @@ func CreditProcessing(port int) {
 
 			creditLock[accountNumber].Lock()
 			Failed_Transaction := make([]creditData, 0)
+			db := config.DB
+			acc, err := strconv.Atoi(accountNumber)
+			if err != nil {
+				config.Logger.Printf("Error converting account number to integer: %v", err)
+				continue
+			}
+			remains := acc % 3
+			switch remains {
+			case 0:
+				db = config.DB
+			case 1:
+				db = config.DB2
+			case 2:
+				db = config.DB3
+			}
 			for index, data := range creditMap[accountNumber] {
 
 				//config.Logger.Printf("Processing credit request: %v", data.AccountNumber)
 				// handle error
-				results, err := config.DB.Query("SELECT Amount FROM bank_details WHERE AccountNumber = ?", data.accountNumber)
+				results, err := db.Query("SELECT Amount FROM bank_details WHERE AccountNumber = ?", data.accountNumber)
 				if err != nil {
 					config.Logger.Fatal(err)
 					Failed_Transaction = append(Failed_Transaction, data)
@@ -182,7 +199,7 @@ func CreditProcessing(port int) {
 						//return "", err
 					}
 					amount = amount + data.amount
-					_, err := config.DB.Exec("UPDATE bank_details SET Amount = ? WHERE AccountNumber = ?", amount, data.accountNumber)
+					_, err := db.Exec("UPDATE bank_details SET Amount = ? WHERE AccountNumber = ?", amount, data.accountNumber)
 					if err != nil {
 						config.Logger.Fatal(err)
 						Failed_Transaction = append(Failed_Transaction, data)
@@ -240,7 +257,7 @@ func (p *process) work(data RequestDataBank) (string, error) {
 	case "debit":
 		{
 			config.Logger.Printf("Processing debit  request with DB operation: %v", data.AccountNumber)
-			err_ := config.DB.Ping()
+			err_ := db.Ping()
 			if err_ != nil {
 				config.Logger.Printf("Error connecting to the database: %v", err_)
 				msg, err := config.ConnectWithSql()
@@ -283,7 +300,26 @@ func (p *process) work(data RequestDataBank) (string, error) {
 	case "reverse":
 		{
 			config.Logger.Printf("Processing debit reversal with DB operation: %v", data.AccountNumber)
-			err_ := config.DB.Ping()
+			db1 := config.DB
+			db2 := config.DB2
+			db3 := config.DB3
+			db := db1
+
+			acc, err := strconv.Atoi(data.AccountNumber)
+			if err != nil {
+				config.Logger.Printf("Error converting account number to integer: %v", err)
+				return "", err
+			}
+			remains := acc % 3
+			switch remains {
+			case 0:
+				db = db1
+			case 1:
+				db = db2
+			case 2:
+				db = db3
+			}
+			err_ := db.Ping()
 			if err_ != nil {
 				config.Logger.Printf("Error connecting to the database: %v", err_)
 				msg, err := config.ConnectWithSql()
@@ -291,7 +327,7 @@ func (p *process) work(data RequestDataBank) (string, error) {
 					return msg, err
 				}
 			}
-			results, err := config.DB.Query("SELECT Amount FROM bank_details WHERE AccountNumber = ?", data.AccountNumber)
+			results, err := db.Query("SELECT Amount FROM bank_details WHERE AccountNumber = ?", data.AccountNumber)
 			if err != nil {
 				config.Logger.Fatal(err)
 				return "", err

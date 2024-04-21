@@ -29,6 +29,10 @@ var DB2 *sql.DB
 var DB3 *sql.DB
 var msg string
 var err error
+var err1 error
+var err2 error
+var err3 error
+
 var Logger *log.Logger
 
 var IndexName string
@@ -53,9 +57,9 @@ func CreateLog(fileName, header string) *log.Logger {
 }
 
 func ConnectWithSql() (string, error) {
-	DB, err1 := sql.Open("mysql", "root:root@tcp(127.0.0.1:3306)/upi")
-	DB2, err2 := sql.Open("mysql", "root:root@tcp(127.0.0.1:3307)/upi")
-	DB3, err3 := sql.Open("mysql", "root:root@tcp(127.0.0.1:3308)/upi")
+	DB, err1 = sql.Open("mysql", "root:root@tcp(127.0.0.1:3307)/upi")
+	DB2, err2 = sql.Open("mysql", "root:root@tcp(127.0.0.1:3308)/upi")
+	DB3, err3 = sql.Open("mysql", "root:root@tcp(127.0.0.1:3309)/upi")
 	if err1 != nil || err2 != nil || err3 != nil {
 		Logger.Fatal(err)
 		return "", err
@@ -66,6 +70,7 @@ func ConnectWithSql() (string, error) {
 		Logger.Fatal(err)
 		return "", err
 	}
+
 	Logger.Println("Successfully connected to MySQL database")
 	return "Success", nil
 }

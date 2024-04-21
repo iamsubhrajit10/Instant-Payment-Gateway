@@ -2,25 +2,37 @@ version: '3.8'
 
 services:
   sql1:
-    image: mcr.microsoft.com/mssql/server
+    image: my-mysql1
     environment:
-      ACCEPT_EULA: "Y"
-      SA_PASSWORD: "YourStrong!Password"
+      MYSQL_ROOT_PASSWORD: root
+      MYSQL_DATABASE: upi
     ports:
-      - "1433:1433"
-
+      - "3307:3306"
+    # volumes:
+    #   - mysql1_data:/var/lib/mysql
+    #command: "/usr/local/bin/bank_init1.sh"
+    #command: /bin/sh -c "/usr/local/bin/bank_init1.sh"
+    #entrypoint: ["sh", "/usr/local/bin/bank_init1.sh"]
   sql2:
-    image: mcr.microsoft.com/mssql/server
+    image: my-mysql2
     environment:
-      ACCEPT_EULA: "Y"
-      SA_PASSWORD: "YourStrong!Password"
+      MYSQL_ROOT_PASSWORD: root
+      MYSQL_DATABASE: upi
     ports:
-      - "1434:1433"
+      - "3308:3306"
+    # volumes:
+    #   - mysql1_data:/var/lib/mysql
+    # CMD ["sh", "script1.sh"]
+    #command: ["sh", "bank_init2.sh"]
+    #enrtypoint: ["sh", "bank_init2.sh"]
 
   sql3:
-    image: mcr.microsoft.com/mssql/server
+    image: my-mysql3
     environment:
-      ACCEPT_EULA: "Y"
-      SA_PASSWORD: "YourStrong!Password"
+      MYSQL_ROOT_PASSWORD: root
+      MYSQL_DATABASE: upi
     ports:
-      - "1435:1433"
+      - "3309:3306"
+    # volumes:
+    #   - mysql1_data:/var/lib/mysql
+    #command: ["sh", "bank_init3.sh"]
