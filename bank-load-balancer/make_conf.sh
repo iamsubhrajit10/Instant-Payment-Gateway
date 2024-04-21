@@ -4,9 +4,9 @@
 private_ip=$(ifconfig | grep 'inet ' | grep -v '127.0.0.1' | awk '{print $2}' | head -n 1)
 
 # Define the upstream servers with the private IP address
-upstream_servers="server $private_ip:5001;
-            server $private_ip:5002;
-            server $private_ip:5003;"
+upstream_servers="server $private_ip:9001;
+            server $private_ip:9002;
+            server $private_ip:9003;"
 
 # Create the configuration file dynamically
 cat <<EOF > lb.conf

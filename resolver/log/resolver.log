@@ -1,44 +1,4 @@
-[RESOLVER]18:23:18.412534 resolver_server.go:151: server listening at [::]:3000
-[RESOLVER]18:23:18.412793 resolver_server.go:152: server going to listen at 3000
-[RESOLVER]19:01:29.936365 resolver_server.go:115: Received: {"TransactionID":"15896559","PaymentID":"1","Type":"resolve"}
-[RESOLVER]19:01:29.936430 resolver_server.go:115: Received: {"TransactionID":"15896559","PaymentID":"2","Type":"resolve"}
-[RESOLVER]19:01:29.943048 resolver_server.go:86: Processing message: {"TransactionID":"15896559","PaymentID":"2","Type":"resolve"}
-[RESOLVER]19:01:29.942656 resolver_server.go:86: Processing message: {"TransactionID":"15896559","PaymentID":"1","Type":"resolve"}
-[RESOLVER]19:01:29.963358 resolver_server.go:121: Sending: {"TransactionID":"15896559","PaymentID":"2","Status":"found","AccountNumber":"12345678902","IFSCCode":"IFSC0002","HolderName":"Holder2"}
-[RESOLVER]19:01:29.963422 resolver_server.go:121: Sending: {"TransactionID":"15896559","PaymentID":"1","Status":"found","AccountNumber":"12345678901","IFSCCode":"IFSC0001","HolderName":"Holder1"}
-[RESOLVER]19:03:50.042157 resolver_server.go:115: Received: {"TransactionID":"49667397","PaymentID":"2","Type":"resolve"}
-[RESOLVER]19:03:50.043063 resolver_server.go:86: Processing message: {"TransactionID":"49667397","PaymentID":"2","Type":"resolve"}
-[RESOLVER]19:03:50.042165 resolver_server.go:115: Received: {"TransactionID":"49667397","PaymentID":"1","Type":"resolve"}
-[RESOLVER]19:03:50.043997 resolver_server.go:86: Processing message: {"TransactionID":"49667397","PaymentID":"1","Type":"resolve"}
-[RESOLVER]19:03:50.047491 resolver_server.go:121: Sending: {"TransactionID":"49667397","PaymentID":"1","Status":"found","AccountNumber":"12345678901","IFSCCode":"IFSC0001","HolderName":"Holder1"}
-[RESOLVER]19:03:50.047689 resolver_server.go:121: Sending: {"TransactionID":"49667397","PaymentID":"2","Status":"found","AccountNumber":"12345678902","IFSCCode":"IFSC0002","HolderName":"Holder2"}
-[RESOLVER]19:04:33.785896 resolver_server.go:115: Received: {"TransactionID":"31176728","PaymentID":"2","Type":"resolve"}
-[RESOLVER]19:04:33.786395 resolver_server.go:86: Processing message: {"TransactionID":"31176728","PaymentID":"2","Type":"resolve"}
-[RESOLVER]19:04:33.786007 resolver_server.go:115: Received: {"TransactionID":"31176728","PaymentID":"1","Type":"resolve"}
-[RESOLVER]19:04:33.787766 resolver_server.go:86: Processing message: {"TransactionID":"31176728","PaymentID":"1","Type":"resolve"}
-[RESOLVER]19:04:33.789266 resolver_server.go:121: Sending: {"TransactionID":"31176728","PaymentID":"2","Status":"found","AccountNumber":"12345678902","IFSCCode":"IFSC0002","HolderName":"Holder2"}
-[RESOLVER]19:04:33.789474 resolver_server.go:121: Sending: {"TransactionID":"31176728","PaymentID":"1","Status":"found","AccountNumber":"12345678901","IFSCCode":"IFSC0001","HolderName":"Holder1"}
-[RESOLVER]19:05:26.886686 resolver_server.go:115: Received: {"TransactionID":"24722641","PaymentID":"2","Type":"resolve"}
-[RESOLVER]19:05:26.887135 resolver_server.go:86: Processing message: {"TransactionID":"24722641","PaymentID":"2","Type":"resolve"}
-[RESOLVER]19:05:26.889271 resolver_server.go:121: Sending: {"TransactionID":"24722641","PaymentID":"2","Status":"found","AccountNumber":"12345678902","IFSCCode":"IFSC0002","HolderName":"Holder2"}
-[RESOLVER]19:05:26.889467 resolver_server.go:115: Received: {"TransactionID":"24722641","PaymentID":"1","Type":"resolve"}
-[RESOLVER]19:05:26.889711 resolver_server.go:86: Processing message: {"TransactionID":"24722641","PaymentID":"1","Type":"resolve"}
-[RESOLVER]19:05:26.890936 resolver_server.go:121: Sending: {"TransactionID":"24722641","PaymentID":"1","Status":"found","AccountNumber":"12345678901","IFSCCode":"IFSC0001","HolderName":"Holder1"}
-[RESOLVER]19:15:22.536389 resolver_server.go:115: Received: {"TransactionID":"79925161","PaymentID":"2","Type":"resolve"}
-[RESOLVER]19:15:22.537106 resolver_server.go:86: Processing message: {"TransactionID":"79925161","PaymentID":"2","Type":"resolve"}
-[RESOLVER]19:15:22.536385 resolver_server.go:115: Received: {"TransactionID":"79925161","PaymentID":"1","Type":"resolve"}
-[RESOLVER]19:15:22.538199 resolver_server.go:86: Processing message: {"TransactionID":"79925161","PaymentID":"1","Type":"resolve"}
-[RESOLVER]19:15:22.539613 resolver_server.go:121: Sending: {"TransactionID":"79925161","PaymentID":"2","Status":"found","AccountNumber":"12345678902","IFSCCode":"IFSC0002","HolderName":"Holder2"}
-[RESOLVER]19:15:22.540202 resolver_server.go:121: Sending: {"TransactionID":"79925161","PaymentID":"1","Status":"found","AccountNumber":"12345678901","IFSCCode":"IFSC0001","HolderName":"Holder1"}
-[RESOLVER]19:16:53.763233 resolver_server.go:115: Received: {"TransactionID":"13909399","PaymentID":"2","Type":"resolve"}
-[RESOLVER]19:16:53.764091 resolver_server.go:86: Processing message: {"TransactionID":"13909399","PaymentID":"2","Type":"resolve"}
-[RESOLVER]19:16:53.767552 resolver_server.go:121: Sending: {"TransactionID":"13909399","PaymentID":"2","Status":"found","AccountNumber":"12345678902","IFSCCode":"IFSC0002","HolderName":"Holder2"}
-[RESOLVER]19:16:53.807073 resolver_server.go:115: Received: {"TransactionID":"13909399","PaymentID":"1","Type":"resolve"}
-[RESOLVER]19:16:53.807734 resolver_server.go:86: Processing message: {"TransactionID":"13909399","PaymentID":"1","Type":"resolve"}
-[RESOLVER]19:16:53.810181 resolver_server.go:121: Sending: {"TransactionID":"13909399","PaymentID":"1","Status":"found","AccountNumber":"12345678901","IFSCCode":"IFSC0001","HolderName":"Holder1"}
-[RESOLVER]19:22:24.941491 resolver_server.go:115: Received: {"TransactionID":"39096202","PaymentID":"1","Type":"resolve"}
-[RESOLVER]19:22:24.942188 resolver_server.go:86: Processing message: {"TransactionID":"39096202","PaymentID":"1","Type":"resolve"}
-[RESOLVER]19:22:24.941687 resolver_server.go:115: Received: {"TransactionID":"39096202","PaymentID":"2","Type":"resolve"}
-[RESOLVER]19:22:24.944003 resolver_server.go:86: Processing message: {"TransactionID":"39096202","PaymentID":"2","Type":"resolve"}
-[RESOLVER]19:22:24.947306 resolver_server.go:121: Sending: {"TransactionID":"39096202","PaymentID":"2","Status":"found","AccountNumber":"12345678902","IFSCCode":"IFSC0002","HolderName":"Holder2"}
-[RESOLVER]19:22:24.947707 resolver_server.go:121: Sending: {"TransactionID":"39096202","PaymentID":"1","Status":"found","AccountNumber":"12345678901","IFSCCode":"IFSC0001","HolderName":"Holder1"}
+[RESOLVER]22:45:14.022990 resolver_server.go:186: server listening at [::]:3003
+[RESOLVER]22:45:14.023359 resolver_server.go:187: server going to listen at 3003
+[RESOLVER]23:00:10.097395 resolver_server.go:137: Sending: [{"TransactionID":"1","PaymentID":"1","Status":"found","AccountNumber":"12345678901","IFSCCode":"IFSC0001","HolderName":"Holder1"},{"TransactionID":"1","PaymentID":"2","Status":"found","AccountNumber":"12345678902","IFSCCode":"IFSC0002","HolderName":"Holder2"}]
+[RESOLVER]23:00:28.318412 resolver_server.go:137: Sending: [{"TransactionID":"1","PaymentID":"1","Status":"found","AccountNumber":"12345678901","IFSCCode":"IFSC0001","HolderName":"Holder1"},{"TransactionID":"1","PaymentID":"2","Status":"found","AccountNumber":"12345678902","IFSCCode":"IFSC0002","HolderName":"Holder2"}]

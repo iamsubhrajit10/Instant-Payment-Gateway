@@ -10,9 +10,9 @@ import (
 )
 
 var DebitBankServerIPV4 string
-var DebitBankServerPort int
+var DebitBankServerPort string
 var CreditBankServerIPV4 string
-var CreditBankServerPort int
+var CreditBankServerPort string
 var DebitRetries int
 var Logger *log.Logger
 
@@ -39,8 +39,8 @@ func LoadEnvData() error {
 	ResolverServerPort = os.Getenv("RESOLVER_SERVER_PORT")
 	ResolverServerIPV4 = os.Getenv("RESOLVER_SERVER_IPV4")
 	DebitBankServerIPV4 = os.Getenv("DEBITBANKSERVERIPV4")
-	DebitBankServerPort, _ = strconv.Atoi(os.Getenv("DEBITPORT"))
-	CreditBankServerPort, _ = strconv.Atoi(os.Getenv("CREDITPORT"))
+	DebitBankServerPort = os.Getenv("DEBITPORT")
+	CreditBankServerPort = os.Getenv("CREDITPORT")
 	CreditBankServerIPV4 = os.Getenv("CREDITBANKSERVERIPV4")
 	//CreditBankServerPort = os.Getenv("CREDITPORT")
 	DebitRetries, _ = strconv.Atoi(os.Getenv("DEBET_RETRIES"))

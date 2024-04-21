@@ -241,9 +241,9 @@ func CreditRequest(bankServerIPV4 string, data RequestDataBank) (string, error) 
 	// defer ClientConn.Close()
 	// c := pb.NewDetailsClient(ClientConn)
 	ctx := context.Background()
-	if err := creditLimiter.Wait(ctx); err != nil {
-		return "Rate limit exceeded", err
-	}
+	// if err := creditLimiter.Wait(ctx); err != nil {
+	// 	return "Rate limit exceeded", err
+	// }
 
 	jsonString, err := json.Marshal(data)
 
@@ -311,9 +311,9 @@ func generateTransactionID() string {
 func TransferHandler(c echo.Context) error {
 	// Get the resolver server address
 
-	RequestCount++
-	DebitPort := config.DebitBankServerPort + RequestCount%3
-	CreditPort := config.CreditBankServerPort + RequestCount%3
+	// RequestCount++
+	// DebitPort := config.DebitBankServerPort + RequestCount%3
+	// CreditPort := config.CreditBankServerPort + RequestCount%3
 
 	resolverServerIPV4 := config.ResolverServerIPV4 + ":" + config.ResolverServerPort
 	// Get the bank server address
@@ -329,6 +329,9 @@ func TransferHandler(c echo.Context) error {
 		return err
 	}
 
+	tid := generateTransactionID()
+	resolveData.Requests[0].TransactionID = tid
+	resolveData.Requests[1].TransactionID = tid
 	// Resolve PaymentIDs
 	replyData, err := resolveRequest(resolverServerIPV4, resolveData)
 	if err != nil {
@@ -387,15 +390,15 @@ func TransferHandler(c echo.Context) error {
 			msg, _ := debitRetry(debitBankServerIPV4, debitData)
 			if msg == "Failed" {
 
-				dumpTranscation(replyResolverPayee.TransactionID, debitBankServerIPV4, creitBankServerIPV4, "debit", debitData.Amount, replyResolverPayee.AccountNumber, replyResolverPayee.HolderName, replyResolverPayee.IFSCCode, replyResolverPayer.AccountNumber, replyResolverPayer.HolderName, replyResolverPayer.IFSCCode)
+				dumpTranscation(replyResolverPayee.TransactionID, debitBankServerIPV4, creditBankServerIPV4, "debit", debitData.Amount, replyResolverPayee.AccountNumber, replyResolverPayee.HolderName, replyResolverPayee.IFSCCode, replyResolverPayer.AccountNumber, replyResolverPayer.HolderName, replyResolverPayer.IFSCCode)
 				return c.String(http.StatusInternalServerError, "Debit Failed")
 			}
-			_, err_ := creditRequest(creditBankServerIPV4, creditData)
+			_, err_ := CreditRequest(creditBankServerIPV4, creditData)
 			if err_ != nil {
 
-				msg, _ := creditRetry(creitBankServerIPV4, creditData)
+				msg, _ := creditRetry(creditBankServerIPV4, creditData)
 				if msg == "Failed" {
-					dumpTranscation(replyResolverPayee.TransactionID, debitBankServerIPV4, creitBankServerIPV4, "credit", creditData.Amount, replyResolverPayee.AccountNumber, replyResolverPayee.HolderName, replyResolverPayee.IFSCCode, replyResolverPayer.AccountNumber, replyResolverPayer.HolderName, replyResolverPayer.IFSCCode)
+					dumpTranscation(replyResolverPayee.TransactionID, debitBankServerIPV4, creditBankServerIPV4, "credit", creditData.Amount, replyResolverPayee.AccountNumber, replyResolverPayee.HolderName, replyResolverPayee.IFSCCode, replyResolverPayer.AccountNumber, replyResolverPayer.HolderName, replyResolverPayer.IFSCCode)
 					return c.String(http.StatusInternalServerError, "Credit Failed")
 				}
 				//return c.String(http.StatusInternalServerError, "Credit Failed")
@@ -403,12 +406,12 @@ func TransferHandler(c echo.Context) error {
 			return c.String(http.StatusOK, "Transfer Successful")
 		}
 		config.Logger.Printf("Debit: %s", x)
-		_, err_ := CreditRequest(creitBankServerIPV4, creditData)
+		_, err_ := CreditRequest(creditBankServerIPV4, creditData)
 		if err_ != nil {
 
-			msg, _ := creditRetry(creitBankServerIPV4, creditData)
+			msg, _ := creditRetry(creditBankServerIPV4, creditData)
 			if msg == "Failed" {
-				dumpTranscation(replyResolverPayee.TransactionID, debitBankServerIPV4, creitBankServerIPV4, "credit", creditData.Amount, replyResolverPayee.AccountNumber, replyResolverPayee.HolderName, replyResolverPayee.IFSCCode, replyResolverPayer.AccountNumber, replyResolverPayer.HolderName, replyResolverPayer.IFSCCode)
+				dumpTranscation(replyResolverPayee.TransactionID, debitBankServerIPV4, creditBankServerIPV4, "credit", creditData.Amount, replyResolverPayee.AccountNumber, replyResolverPayee.HolderName, replyResolverPayee.IFSCCode, replyResolverPayer.AccountNumber, replyResolverPayer.HolderName, replyResolverPayer.IFSCCode)
 				return c.String(http.StatusInternalServerError, "Credit Failed")
 			}
 			//return c.String(http.StatusInternalServerError, "Credit Failed")

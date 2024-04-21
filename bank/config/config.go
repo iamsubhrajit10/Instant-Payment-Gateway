@@ -81,7 +81,7 @@ func CreateElasticSearchClient() error {
 
 	cfg := elasticsearch.Config{
 		Addresses: []string{
-			"http://localhost:9200",
+			"http://10.240.1.252:9200",
 		},
 		Username: "elastic",
 		Password: "4LhVyC8-UV+3_gC+o1PU",
