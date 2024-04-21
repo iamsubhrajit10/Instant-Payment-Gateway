@@ -1,11 +1,10 @@
-# Instructions
-Before you start the resolver, please create the mapping database using:
+## How to run three instances of resovler?
+
+get docker image ready
+```bash
+docker build -t resolver:latest .
 ```
-chmod 777 dummy_data.sh
-./dummy_data.sh
-```
-# Run the resovler
-```
-go build
-go run resovler
+run three instances of this container
+```bash
+./duplicate_container.sh
 ```

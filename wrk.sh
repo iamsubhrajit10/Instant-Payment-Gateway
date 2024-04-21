@@ -1,8 +1,9 @@
 #!/bin/bash
 
 url="http://localhost:80/transfer"  # Replace with your server URL
-total_requests=10000 # Total number of requests
-duration=100  # Duration in seconds
+total_requests=4 # Total number of requests
+duration=1000  # Duration in seconds
+threads=8  # Number of threads
 
 # Generate a Lua script for wrk
 lua_script="wrk_script.lua"
@@ -31,4 +32,4 @@ echo "  return wrk.format(nil, nil, nil, body)" >> $lua_script
 echo "end" >> $lua_script
 
 # Send concurrent requests with custom data using wrk
-wrk -c $total_requests -d ${duration}s -t 4 -s $lua_script $url
+wrk -c $total_requests -d ${duration}s -t $threads -s $lua_script $url

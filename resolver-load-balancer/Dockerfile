@@ -1,4 +1,4 @@
-From nginx:alpine
+From nginx:latest
 
 copy lb.conf /etc/nginx/nginx.conf
 

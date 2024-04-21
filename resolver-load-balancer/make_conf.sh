@@ -5,8 +5,8 @@ private_ip=$(ifconfig | grep 'inet ' | grep -v '127.0.0.1' | awk '{print $2}' | 
 
 # Define the upstream servers with the private IP address
 upstream_servers="server $private_ip:3001;
-        server $private_ip:3002;
-        server $private_ip:3003;"
+            server $private_ip:3002;
+            server $private_ip:3003;"
 
 # Create the configuration file dynamically
 cat <<EOF > lb.conf
@@ -15,7 +15,7 @@ events {
 }
 
 http {
-    upstream backend {
+    upstream grpcservers {
         $upstream_servers
     }
 
@@ -25,7 +25,7 @@ http {
         location / {
             # Replace localhost:50051 with the address and port of your gRPC server
             # The 'grpc://' prefix is optional; unencrypted gRPC is the default
-            grpc_pass grpc://localhost:3000;
+            grpc_pass grpc://grpcservers;
         }
     }
 }
