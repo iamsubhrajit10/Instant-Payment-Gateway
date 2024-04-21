@@ -3,7 +3,6 @@ package paymenthandler
 import (
 	"context"
 	"encoding/json"
-	"flag"
 	"fmt"
 	"log"
 	"net/http"
@@ -18,16 +17,18 @@ import (
 )
 
 var (
-	GrpcClientMap                = make(map[string]pb.DetailsClient)
-	GrpcConnectionMap            = make(map[string]*grpc.ClientConn)
-	IsThereResGrpcConnection     = make(map[string]bool)
-	GrpcConnectionPoolRes        = make(map[string][]*grpc.ClientConn)
-	GrpcClientMapRes             = make(map[string]resolverpb.DetailsClient)
-	successfulRequests       int = 0
-	debitLimiter                 = rate.NewLimiter(2000, 4000) // 1000 requests per second, with a burst limit of 2000 requests
-	creditLimiter                = rate.NewLimiter(2000, 4000) // 1000 requests per second, with a burst limit of 2000 requests
-	resolveLimiter               = rate.NewLimiter(2000, 4000) // 1000 requests per second, with a burst limit of 2000 requests
-	resolverConnectionCount  int = 0
+	GrpcClientMap                 = make(map[string]pb.DetailsClient)
+	IsThereResGrpcConnection      = make(map[string]bool)
+	IsThereBankGrpcConnection     = make(map[string]bool)
+	GrpcConnectionPoolBank        = make(map[string][]*grpc.ClientConn)
+	GrpcConnectionPoolRes         = make(map[string][]*grpc.ClientConn)
+	GrpcClientMapRes              = make(map[string]resolverpb.DetailsClient)
+	successfulRequests        int = 0
+	debitLimiter                  = rate.NewLimiter(2000, 4000) // 1000 requests per second, with a burst limit of 2000 requests
+	creditLimiter                 = rate.NewLimiter(2000, 4000) // 1000 requests per second, with a burst limit of 2000 requests
+	resolveLimiter                = rate.NewLimiter(2000, 4000) // 1000 requests per second, with a burst limit of 2000 requests
+	resolverConnectionCount   int = 0
+	bankConnectionCount       int = 0
 )
 
 type RequestDataBank struct {
@@ -58,17 +59,35 @@ type ReplyDataResolver struct {
 	Responses []ReplyResolver
 }
 
-func getGRPCConnection(address string) (*grpc.ClientConn, error) {
-	addr := flag.String("addr", address, "the address to connect to")
-	if _, ok := GrpcConnectionMap[*addr]; !ok {
-		conn, err := grpc.Dial(*addr, grpc.WithTransportCredentials(insecure.NewCredentials()))
+func makeGRPCConnectionPoolBank(address string) error {
+	var connPool []*grpc.ClientConn
+	for i := 0; i < 5; i++ {
+		conn, err := grpc.Dial(address, grpc.WithTransportCredentials(insecure.NewCredentials()))
 		if err != nil {
-			//log.Fatalf("did not connect: %v", err)
+			return err
+		}
+		connPool = append(connPool, conn)
+	}
+	GrpcConnectionPoolBank[address] = connPool
+	IsThereBankGrpcConnection[address] = true
+	return nil
+}
+func getBankGrpcConnectionFromPool(address string) (*grpc.ClientConn, error) {
+	choice := bankConnectionCount % len(GrpcConnectionPoolBank[address])
+	bankConnectionCount++
+	return GrpcConnectionPoolBank[address][choice], nil
+}
+
+// Round Robin Connection Pool Selection	for Bank
+func getGRPCConnection(address string) (*grpc.ClientConn, error) {
+	if _, ok := IsThereBankGrpcConnection[address]; !ok {
+		err := makeGRPCConnectionPoolBank(address)
+		if err != nil {
 			return nil, err
 		}
-		GrpcConnectionMap[*addr] = conn
 	}
-	return GrpcConnectionMap[*addr], nil
+	connection, _ := getBankGrpcConnectionFromPool(address)
+	return connection, nil
 }
 
 // Round Robin Connection Pool Selection	for Resolver
