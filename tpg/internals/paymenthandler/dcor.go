@@ -73,9 +73,9 @@ func getGRPCConnection(address string) (*grpc.ClientConn, error) {
 
 // Round Robin Connection Pool Selection	for Resolver
 func getResGrpcConnectionFromPool(address string) (*grpc.ClientConn, error) {
-	chooser := resolverConnectionCount % len(GrpcConnectionPoolRes[address])
+	choice := resolverConnectionCount % len(GrpcConnectionPoolRes[address])
 	resolverConnectionCount++
-	return GrpcConnectionPoolRes[address][chooser], nil
+	return GrpcConnectionPoolRes[address][choice], nil
 }
 
 func makeResGRPCConnectionPool(address string) error {
