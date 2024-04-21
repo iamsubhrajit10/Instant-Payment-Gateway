@@ -1,0 +1,26 @@
+version: '3.8'
+
+services:
+  sql1:
+    image: mcr.microsoft.com/mssql/server
+    environment:
+      ACCEPT_EULA: "Y"
+      SA_PASSWORD: "YourStrong!Password"
+    ports:
+      - "1433:1433"
+
+  sql2:
+    image: mcr.microsoft.com/mssql/server
+    environment:
+      ACCEPT_EULA: "Y"
+      SA_PASSWORD: "YourStrong!Password"
+    ports:
+      - "1434:1433"
+
+  sql3:
+    image: mcr.microsoft.com/mssql/server
+    environment:
+      ACCEPT_EULA: "Y"
+      SA_PASSWORD: "YourStrong!Password"
+    ports:
+      - "1435:1433"
