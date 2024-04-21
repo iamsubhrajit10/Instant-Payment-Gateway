@@ -18,14 +18,16 @@ import (
 )
 
 var (
-	GrpcClientMap            = make(map[string]pb.DetailsClient)
-	GrpcConnectionMap        = make(map[string]*grpc.ClientConn)
-	GrpcConnectionMapRes     = make(map[string]*grpc.ClientConn)
-	GrpcClientMapRes         = make(map[string]resolverpb.DetailsClient)
-	successfulRequests   int = 0
-	debitLimiter             = rate.NewLimiter(2000, 4000) // 1000 requests per second, with a burst limit of 2000 requests
-	creditLimiter            = rate.NewLimiter(2000, 4000) // 1000 requests per second, with a burst limit of 2000 requests
-	resolveLimiter           = rate.NewLimiter(2000, 4000) // 1000 requests per second, with a burst limit of 2000 requests
+	GrpcClientMap                = make(map[string]pb.DetailsClient)
+	GrpcConnectionMap            = make(map[string]*grpc.ClientConn)
+	IsThereResGrpcConnection     = make(map[string]bool)
+	GrpcConnectionPoolRes        = make(map[string][]*grpc.ClientConn)
+	GrpcClientMapRes             = make(map[string]resolverpb.DetailsClient)
+	successfulRequests       int = 0
+	debitLimiter                 = rate.NewLimiter(2000, 4000) // 1000 requests per second, with a burst limit of 2000 requests
+	creditLimiter                = rate.NewLimiter(2000, 4000) // 1000 requests per second, with a burst limit of 2000 requests
+	resolveLimiter               = rate.NewLimiter(2000, 4000) // 1000 requests per second, with a burst limit of 2000 requests
+	resolverConnectionCount  int = 0
 )
 
 type RequestDataBank struct {
@@ -69,17 +71,38 @@ func getGRPCConnection(address string) (*grpc.ClientConn, error) {
 	return GrpcConnectionMap[*addr], nil
 }
 
-func getGRPCConnectionResolver(address string) (*grpc.ClientConn, error) {
+// Round Robin Connection Pool Selection	for Resolver
+func getResGrpcConnectionFromPool(address string) (*grpc.ClientConn, error) {
+	chooser := resolverConnectionCount % len(GrpcConnectionPoolRes[address])
+	resolverConnectionCount++
+	return GrpcConnectionPoolRes[address][chooser], nil
+}
+
+func makeResGRPCConnectionPool(address string) error {
 	// fmt.Println(address)
-	if _, ok := GrpcConnectionMapRes[address]; !ok {
+	var connPool []*grpc.ClientConn
+	for i := 0; i < 5; i++ {
 		conn, err := grpc.Dial(address, grpc.WithTransportCredentials(insecure.NewCredentials()))
 		if err != nil {
-			log.Fatalf("did not connect: %v", err)
+			return err
+		}
+		connPool = append(connPool, conn)
+	}
+	GrpcConnectionPoolRes[address] = connPool
+	IsThereResGrpcConnection[address] = true
+	return nil
+}
+
+func getGRPCConnectionResolver(address string) (*grpc.ClientConn, error) {
+	// fmt.Println(address)
+	if _, ok := IsThereResGrpcConnection[address]; !ok {
+		err := makeResGRPCConnectionPool(address)
+		if err != nil {
 			return nil, err
 		}
-		GrpcConnectionMapRes[address] = conn
 	}
-	return GrpcConnectionMapRes[address], nil
+	connection, _ := getResGrpcConnectionFromPool(address)
+	return connection, nil
 }
 
 func getGRPCClient(address string) (pb.DetailsClient, error) {
