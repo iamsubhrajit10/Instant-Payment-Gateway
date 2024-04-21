@@ -60,6 +60,13 @@ type RequestDataBank struct {
 	Type          string
 }
 
+type ReverseData struct {
+	TransactionID string
+	AccountNumber string
+	Amount        int
+	Type          string
+}
+
 func generateProcessId() string {
 
 	rand.Seed(time.Now().UnixNano())
@@ -108,13 +115,29 @@ func processCreditRequest(RequestData RequestDataBank) (string, error) {
 		config.Logger.Printf("Credit request for transaction id %v failed with error: %v.\n", RequestData.TransactionID, msg)
 		return msg, nil
 	}
-
 	return "Credit request processed", nil
 }
 
 func processReverseRequest(RequestData RequestDataBank) (string, error) {
 	config.Logger.Printf("Processing reverse request: %v", RequestData)
-	return "Reverse request processed", nil
+	p, err := cms.NewProcess(config.LeaderPort, RequestData.AccountNumber, RequestData.Type)
+	if err != nil {
+		config.Logger.Printf("client create error: %v.\n", err.Error())
+		return "", err
+	}
+
+	msg, err_ := p.Run(RequestData.AccountNumber, RequestData.Type, cms.RequestDataBank(RequestData))
+	if err_ != nil {
+		config.Logger.Printf("Debit reverse for transaction id %v failed with error: %v.\n", RequestData.TransactionID, err_.Error())
+		return "", err_
+	}
+
+	if msg != "Transaction Reversed" {
+		config.Logger.Printf("Debit reverse for transaction id %v failed with error: %v.\n", RequestData.TransactionID, msg)
+		return msg, nil
+	}
+
+	return "Transaction Reversed", nil
 }
 
 func processGRPCMessage(msg string) (string, error) {
@@ -177,12 +200,12 @@ func initializeLearderServer() {
 }
 
 func main() {
-
 	config.LoadEnvData()
 	if config.IsLeader == "TRUE" {
 		config.Logger.Printf("Bank server is the leader")
 		initializeLearderServer()
 	}
+	go cms.CreditProcessing(config.LeaderPort)
 	port = flag.Int("port", config.BANKSERVERPORT, "The server port")
 	flag.Parse()
 	lis, err := net.Listen("tcp", fmt.Sprintf(":%d", *port))

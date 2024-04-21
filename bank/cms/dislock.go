@@ -33,43 +33,42 @@ func NewDislock(port int) (*dislock, error) {
 }
 
 // TODO: handle timeout.
-func (dl *dislock) Acquire(accountNumber, Type string) error {
-	lr := msgp.NewRequest(accountNumber, Type)
-	config.Logger.Printf("%v send request lock message for (%v) to server.\n", accountNumber, Type)
+func (dl *dislock) Acquire(accountNumbers []string, Type string) ([]string, error) {
+	lr := msgp.NewRequest(accountNumbers, Type)
+	config.Logger.Printf("%v send request lock message for (%v) to server.\n", accountNumbers, Type)
 	lrBytes, _ := json.Marshal(lr)
 	if err := dl.cli.WriteData(lrBytes); err != nil {
-		config.Logger.Printf("%v send request lock message for (%v) to server giving error: (%v).\n", accountNumber, Type, err.Error())
-		return err
+		config.Logger.Printf("%v send request lock message for (%v) to server giving error: (%v).\n", accountNumbers, Type, err.Error())
+		return nil, err
 	}
-	config.Logger.Printf("(%v) wait grant message from server.\n", accountNumber)
+	config.Logger.Printf("(%v) wait grant message from server.\n", accountNumbers)
 	lgBytes, err := dl.cli.ReadData()
 	if err != nil {
-		config.Logger.Printf("(%v) receive Grant message error: %v.\n", accountNumber, err.Error())
-		return err
+		config.Logger.Printf("(%v) receive Grant message error: %v.\n", accountNumbers, err.Error())
+		return nil, err
 	}
 	var lg msgp.Message
 	json.Unmarshal(lgBytes, &lg)
 	if lg.MsgType == "Grant" {
-		config.Logger.Printf("(%v) receive Grant message for (%v) from server.\n", accountNumber, Type)
-		return nil
+		config.Logger.Printf("(%v) receive Grant message for (%v) from server.\n", accountNumbers, Type)
+		return lg.AccountNumbers, nil
 	} else {
-		errMsg := fmt.Sprintf("(%v) receive error message for (%v) from server.\n", accountNumber, Type)
+		errMsg := fmt.Sprintf("(%v) receive error message for (%v) from server.\n", accountNumbers, Type)
 		config.Logger.Printf(errMsg)
-		return errors.New(errMsg)
+		return nil, errors.New(errMsg)
+		//return nil,nil
 	}
 }
 
-func (dl *dislock) Release(accountNumber, Type string) error {
+func (dl *dislock) Release(accountNumbers []string, Type string) error {
 	// send lock release message.
-	lrl := msgp.NewRelease(accountNumber, Type)
+	lrl := msgp.NewRelease(accountNumbers, Type)
 	lrlBytes, _ := json.Marshal(lrl)
 	if err := dl.cli.WriteData(lrlBytes); err != nil {
-		config.Logger.Printf("(%v) send release message of type (%v) error: %v.\n", accountNumber, Type, err.Error())
+		config.Logger.Printf("(%v) send release message of type (%v) error: %v.\n", accountNumbers, Type, err.Error())
 		return err
 	}
-	config.Logger.Printf("(%v) send release message of type (%v) successfully.\n", accountNumber, Type)
-	//dl.cli.Close() // close connection
-	config.Logger.Printf("(%v) closed successfully.\n", accountNumber)
+	config.Logger.Printf("(%v) send release message of type (%v) successfully.\n", accountNumbers, Type)
 	return nil
 }
 

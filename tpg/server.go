@@ -3,6 +3,7 @@ package main
 import (
 	//"fmt"
 
+	"fmt"
 	"time"
 
 	//"os"
@@ -11,6 +12,7 @@ import (
 	"tpg/internals/router"
 	"tpg/scheduler"
 
+	//"tpg/scheduler"
 	"github.com/go-co-op/gocron/v2"
 )
 
@@ -36,7 +38,9 @@ func main() {
 	if err != nil {
 		config.Logger.Fatal("error: unable to populate scheduler with reverse job")
 	}
-	config.Logger.Println(j.ID())
+	//config.Logger.Println(j.ID())
+	fmt.Println(j.ID())
+
 	s.Start()
 
 	//Start the echo server

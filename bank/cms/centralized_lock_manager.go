@@ -6,7 +6,8 @@ import (
 	msgp "bank/cms/msg"
 	netq "bank/cms/netq"
 	"bank/config"
-	"container/list"
+
+	//"container/list"
 	"encoding/json"
 	"fmt"
 	// "sync"
@@ -18,9 +19,9 @@ const (
 
 type CentLockMang struct {
 	//processQueue *list.List // FIFO
-	processDebitMap  map[string]*list.List
-	processCreditMap map[string]*list.List
-	grantMap         map[string]bool
+	// processDebitMap  map[string]*list.List
+	// processCreditMap map[string]*list.List
+	grantMap map[string]bool
 	//granted      bool
 	srv         netq.Server
 	port        int
@@ -34,11 +35,11 @@ type msgCompStruct struct {
 
 func NewCentLockMang(port int) (*CentLockMang, error) {
 	clm := &CentLockMang{
-		port:             port,
-		chanRecvMsg:      make(chan msgCompStruct, MSG_BUFFERED_SIZE),
-		grantMap:         make(map[string]bool),
-		processCreditMap: make(map[string]*list.List),
-		processDebitMap:  make(map[string]*list.List),
+		port:        port,
+		chanRecvMsg: make(chan msgCompStruct, MSG_BUFFERED_SIZE),
+		grantMap:    make(map[string]bool),
+		//processCreditMap: make(map[string]*list.List),
+		//processDebitMap:  make(map[string]*list.List),
 	}
 	srv, err := netq.NewServer(clm.port)
 	if err != nil {
@@ -76,89 +77,73 @@ func (clm *CentLockMang) handleLockMsg() {
 			switch message.MsgType {
 			case "Request":
 				{
-					config.Logger.Print("Request recieved")
+					config.Logger.Print("Lock Request recieved")
 					switch message.Type {
-					case "debit":
-						if clm.processDebitMap[message.AccountNumber] == nil {
-							clm.processDebitMap[message.AccountNumber] = list.New()
-						}
-						// if no process is holding the lock, grant the lock to the process
-						// else, add the process to the queue
-						if clm.processDebitMap[message.AccountNumber].Len() == 0 && !clm.grantMap[message.AccountNumber] {
-							clm.grantMap[message.AccountNumber] = true
-							if err := clm.sendGrantMsg(msgComp.connID, message); err != nil {
+					case "debit", "reverse":
+						if !clm.grantMap[message.AccountNumbers[0]] {
+							clm.grantMap[message.AccountNumbers[0]] = true
+							message.MsgType = "Grant"
+							config.Logger.Print("Granting lock to Account %v for type %v", message.AccountNumbers[0], "debit")
+							if err := clm.sendMsg(msgComp.connID, message); err != nil {
 								// return // TODO: handle error
 								fmt.Printf(err.Error())
 								continue
 							}
 
 						} else {
-							clm.processDebitMap[message.AccountNumber].PushBack(msgComp) // store the connection anyway
-							//	clm.logger.Printf("centLockMang defer response to process(%v).\n", message.Sender)
+							message.MsgType = "Reject"
+							config.Logger.Print("Reject Lock request for  Account %v for type %v", message.AccountNumbers[0], "debit")
+							if err := clm.sendMsg(msgComp.connID, message); err != nil {
+								// return // TODO: handle error
+								fmt.Printf(err.Error())
+								continue
+							}
 						}
 					case "credit":
-						if clm.processCreditMap[message.AccountNumber] == nil {
-							clm.processCreditMap[message.AccountNumber] = list.New()
-						}
-						// if no process is holding the lock, grant the lock to the process
-						// else, add the process to the queue
-						if clm.processCreditMap[message.AccountNumber].Len() == 0 && !clm.grantMap[message.AccountNumber] {
-							clm.grantMap[message.AccountNumber] = true
-							if err := clm.sendGrantMsg(msgComp.connID, message); err != nil {
-								// return // TODO: handle error
-								fmt.Printf(err.Error())
-								continue
+						result := make([]string, 0)
+						for _, data := range message.AccountNumbers {
+							if !clm.grantMap[data] {
+								clm.grantMap[data] = true
+								result = append(result, data)
 							}
+						}
 
-						} else {
-							clm.processCreditMap[message.AccountNumber].PushBack(msgComp) // store the connection anyway
-							//	clm.logger.Printf("centLockMang defer response to process(%v).\n", message.Sender)
+						message.MsgType = "Grant"
+						message.AccountNumbers = result
+						config.Logger.Print("grant lock to account %v for credit", message.AccountNumbers)
+						if err := clm.sendMsg(msgComp.connID, message); err != nil {
+							// return // TODO: handle error
+							fmt.Printf(err.Error())
+							continue
 						}
 					}
 				}
 			case "Release":
 				{
-					clm.grantMap[message.AccountNumber] = false
+					config.Logger.Print("Relese lock")
+					for _, data := range message.AccountNumbers {
 
-					if (clm.processDebitMap[message.AccountNumber] != nil) && (clm.processDebitMap[message.AccountNumber].Len() > 0) {
-						mc := clm.processDebitMap[message.AccountNumber].Remove(clm.processDebitMap[message.AccountNumber].Front()).(msgCompStruct)
-						// clm.managerID
-						clm.grantMap[message.AccountNumber] = true
-						if err := clm.sendGrantMsg(mc.connID, message); err != nil {
-							// return // TODO: handle error
-							continue
-						}
-					}
+						clm.grantMap[data] = false
 
-					if (clm.processCreditMap[message.AccountNumber] != nil) && (clm.processCreditMap[message.AccountNumber].Len() > 0) {
-						mc := clm.processCreditMap[message.AccountNumber].Remove(clm.processCreditMap[message.AccountNumber].Front()).(msgCompStruct)
-						// clm.managerID
-						clm.grantMap[message.AccountNumber] = true
-						if err := clm.sendGrantMsg(mc.connID, message); err != nil {
-							// return // TODO: handle error
-							continue
-						}
 					}
 				}
-				// case msgp.Grant:
-				// 	clm.logger.Printf("Error message(%v) type Grant.\n", message.String())
 			}
 		}
 
 	}
 }
 
-func (clm *CentLockMang) sendGrantMsg(connID int, content msgp.Message) error {
+func (clm *CentLockMang) sendMsg(connID int, content msgp.Message) error {
 	// write
-	lg := msgp.NewGrant(content.AccountNumber, content.Type, "Grant")
+	lg := msgp.NewGrant(content.AccountNumbers, content.Type, "Grant")
 	lgBytes, _ := json.Marshal(lg)
-	config.Logger.Printf("centLockMang send message to %v.\n", content.AccountNumber)
+	//config.Logger.Printf("centLockMang send message to %v.\n", content.AccountNumbers)
 	if err := clm.srv.WriteData(connID, lgBytes); err != nil {
-		config.Logger.Printf("centLockMang send message to process(%v) error: %v.\n", content.AccountNumber, err.Error())
+		//	config.Logger.Printf("centLockMang send message to process(%v) error: %v.\n", content.AccountNumber, err.Error())
 		return err
 	}
 
-	config.Logger.Printf("centLockMang send message to process(%v) successfully.\n", content.AccountNumber)
+	//config.Logger.Printf("centLockMang send message to process(%v) successfully.\n", content.AccountNumber)
 	return nil
 }
 
