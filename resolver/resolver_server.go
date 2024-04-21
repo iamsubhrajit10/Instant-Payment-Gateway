@@ -25,12 +25,16 @@ import (
 	"encoding/json"
 	"flag"
 	"fmt"
+	"log"
 	"net"
 	"resolver/config"
 	pb "resolver/resolverproto"
+	"time"
 
 	_ "github.com/mattn/go-sqlite3"
 	"google.golang.org/grpc"
+	_ "google.golang.org/grpc/encoding/gzip" // import gzip
+	"google.golang.org/grpc/keepalive"
 )
 
 var port *int
@@ -41,13 +45,13 @@ type server struct {
 	pb.UnimplementedDetailsServer
 }
 
-type RequestData struct {
+type Request struct {
 	TransactionID string
 	PaymentID     string
 	Type          string
 }
 
-type ReplyData struct {
+type Reply struct {
 	TransactionID string `json:"TransactionID"`
 	PaymentID     string `json:"PaymentID"`
 	Status        string `json:"Status"`
@@ -56,46 +60,57 @@ type ReplyData struct {
 	HolderName    string `json:"HolderName"`
 }
 
-func processResolveRequest(data RequestData) (ReplyData, error) {
-	var reply ReplyData
-	reply.TransactionID = data.TransactionID
-	reply.PaymentID = data.PaymentID
+type RequestData struct {
+	Requests []Request
+}
 
-	// Query the database for the bank details
-	row := db.QueryRow("SELECT AccountNumber, IFSCCode, HolderName FROM bank_details WHERE PaymentID = ?", data.PaymentID)
-	err := row.Scan(&reply.AccountNumber, &reply.IFSCCode, &reply.HolderName)
-	if err != nil {
-		if err == sql.ErrNoRows {
-			// No results, set status to "not found" and fill other fields with identifiable string
-			reply.Status = "not found"
-			reply.AccountNumber = "N/A"
-			reply.IFSCCode = "N/A"
-			reply.HolderName = "N/A"
+type ReplyDataResolver struct {
+	Responses []Reply
+}
+
+func processResolveRequest(data RequestData) ([]Reply, error) {
+	var Responses []Reply
+	for _, request := range data.Requests {
+		var reply Reply
+		reply.TransactionID = request.TransactionID
+		reply.PaymentID = request.PaymentID
+
+		// Query the database for the bank details
+		row := db.QueryRow("SELECT AccountNumber, IFSCCode, HolderName FROM bank_details WHERE PaymentID = ?", request.PaymentID)
+		err := row.Scan(&reply.AccountNumber, &reply.IFSCCode, &reply.HolderName)
+		if err != nil {
+			if err == sql.ErrNoRows {
+				// No results, set status to "not found" and fill other fields with identifiable string
+				reply.Status = "not found"
+				reply.AccountNumber = "N/A"
+				reply.IFSCCode = "N/A"
+				reply.HolderName = "N/A"
+			} else {
+				// Some other error occurred
+				return nil, err
+			}
 		} else {
-			// Some other error occurred
-			return ReplyData{}, err
+			// Results found, set status to "found"
+			reply.Status = "found"
 		}
-	} else {
-		// Results found, set status to "found"
-		reply.Status = "found"
+		Responses = append(Responses, reply)
 	}
-	return reply, nil
+	return Responses, nil
 }
 
 func processGRPCMessage(msg string) (string, error) {
-	config.Logger.Printf("Processing message: %v", msg)
 	var data RequestData
 	err := json.Unmarshal([]byte(msg), &data)
 	if err != nil {
 		return "", err
 	}
-	if data.Type == "resolve" {
-		var reply ReplyData
-		reply, err := processResolveRequest(data)
+	if data.Requests[0].Type == "resolve" {
+		var Responses []Reply
+		Responses, err := processResolveRequest(data)
 		if err != nil {
 			return "", err
 		}
-		replyJSON, err := json.Marshal(reply)
+		replyJSON, err := json.Marshal(Responses)
 		if err != nil {
 			return "", err
 		}
@@ -104,25 +119,26 @@ func processGRPCMessage(msg string) (string, error) {
 	return "", nil
 }
 
-// SayHello implements helloworld.GreeterServer
+// UnarryCall implements helloworld.GreeterServer
+// UnarryCall implements helloworld.GreeterServer
 func (s *server) UnarryCall(ctx context.Context, in *pb.Clientmsg) (*pb.Servermsg, error) {
-	// Create a channel to communicate the result from the goroutine
+	// Create channels to communicate the result and errors from goroutines
 	resultChan := make(chan *pb.Servermsg)
 	errorChan := make(chan error)
 
-	// Start a new goroutine to process the gRPC message
-	go func() {
-		config.Logger.Printf("Received: %v", in.GetName())
-		msg, err := processGRPCMessage(in.GetName())
+	// Start a new goroutine to process each gRPC message concurrently
+	go func(msg string) {
+		log.Printf("Received: %v", in.GetName())
+		msg, err := processGRPCMessage(msg)
 		if err != nil {
 			errorChan <- err
 			return
 		}
 		config.Logger.Printf("Sending: %v", msg)
 		resultChan <- &pb.Servermsg{Message: msg}
-	}()
+	}(in.GetName())
 
-	// Wait for the result from the goroutine
+	// Wait for the result from the goroutines
 	select {
 	case result := <-resultChan:
 		return result, nil
@@ -130,7 +146,6 @@ func (s *server) UnarryCall(ctx context.Context, in *pb.Clientmsg) (*pb.Serverms
 		return &pb.Servermsg{Message: "Error processing message"}, err
 	}
 }
-
 func main() {
 	config.LoadEnvData()
 
@@ -146,7 +161,27 @@ func main() {
 	if err != nil {
 		config.Logger.Fatalf("failed to listen: %v", err)
 	}
-	s := grpc.NewServer()
+	// Set keepalive server parameters
+	ka := keepalive.ServerParameters{
+		MaxConnectionAge:      time.Second * 30,
+		MaxConnectionAgeGrace: time.Second * 10,
+		Time:                  time.Second * 10,
+		Timeout:               time.Second * 5,
+	}
+
+	// Set keepalive enforcement policy
+	kep := keepalive.EnforcementPolicy{
+		MinTime:             time.Second * 10, // Minimum amount of time a client should wait before sending a keepalive
+		PermitWithoutStream: true,             // Allow pings even when there are no active streams
+	}
+
+	// Create server options to set the keepalive policy
+	kaOption := grpc.KeepaliveParams(ka)
+	kepOption := grpc.KeepaliveEnforcementPolicy(kep)
+
+	// Create the gRPC server with the keepalive options
+	s := grpc.NewServer(kaOption, kepOption)
+
 	pb.RegisterDetailsServer(s, &server{})
 	config.Logger.Printf("server listening at %v", lis.Addr())
 	config.Logger.Printf("server going to listen at %v", *port)

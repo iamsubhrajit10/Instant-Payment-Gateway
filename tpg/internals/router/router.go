@@ -13,6 +13,6 @@ func SetupRouter() *echo.Echo {
 	e.GET("/", func(c echo.Context) error {
 		return c.String(http.StatusOK, "Hello, World!")
 	})
-	e.GET("/transfer", paymenthandler.TransferHandler)
+	e.POST("/transfer", paymenthandler.TransferHandler)
 	return e
 }

@@ -6,6 +6,7 @@ require (
 	github.com/go-co-op/gocron/v2 v2.2.9
 	github.com/joho/godotenv v1.5.1
 	github.com/labstack/echo/v4 v4.11.4
+	golang.org/x/time v0.5.0
 	google.golang.org/grpc v1.63.2
 	google.golang.org/protobuf v1.33.0
 )
