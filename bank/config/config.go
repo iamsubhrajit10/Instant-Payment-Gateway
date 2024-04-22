@@ -63,6 +63,7 @@ func CreateLog(fileName, header string) *log.Logger {
 
 func ConnectWithSql() (string, error) {
 
+	log.Print("Connecting to MySQL database...")
 	DB, err1 = sql.Open("mysql", fmt.Sprintf("root:root@tcp(%s:%s)/upi", MySQLIPV41, DBPORT))
 	DB2, err2 = sql.Open("mysql", fmt.Sprintf("root:root@tcp(%s:%s)/upi", MySQLIPV42, DBPORT))
 	DB3, err3 = sql.Open("mysql", fmt.Sprintf("root:root@tcp(%s:%s)/upi", MySQLIPV43, DBPORT))
@@ -71,13 +72,16 @@ func ConnectWithSql() (string, error) {
 		return "", err
 	}
 
+	log.Print("After connecting to MySQL database...")
+
 	err1, err2, err3 = DB.Ping(), DB2.Ping(), DB3.Ping()
 	if err1 != nil || err2 != nil || err3 != nil {
-		Logger.Fatal(err)
+		log.Fatal(err1)
+		log.Fatal(err2)
+		log.Fatal(err3)
 		return "", err
 	}
-
-	Logger.Println("Successfully connected to MySQL database")
+	log.Println("Successfully connected to MySQL database")
 	return "Success", nil
 }
 
@@ -131,6 +135,9 @@ func LoadEnvData() error {
 
 	ServerID, _ = strconv.Atoi(generateRandomID())
 	Logger.Printf("BANKSERVERPORT: %v", BANKSERVERPORT)
+
+	log.Printf("BANKSERVERPORT: %v", BANKSERVERPORT)
+	time.Sleep(10 * time.Second)
 	msg, _ := ConnectWithSql()
 	Logger.Printf("IndexName: %v", IndexName)
 	err = CreateElasticSearchClient()

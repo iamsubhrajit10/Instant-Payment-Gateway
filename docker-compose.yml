@@ -42,6 +42,8 @@ services:
     image: lb-tpg
     ports:
       - "8088:80"
+    networks:
+      - mynetwork
   resolverlb:
     image: lb_resolver
     networks:
