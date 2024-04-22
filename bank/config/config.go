@@ -21,8 +21,13 @@ var BANKSERVERPORT int
 var LeaderIPV4 string
 var LeaderPort int
 var IsLeader string
+var MySQLIPV4 string
 var ServerID int
-
+var LEADERLISTENIPV4 string
+var ElasticSearchIPV4 string
+var DBPORT1 string
+var DBPORT2 string
+var DBPORT3 string
 var Client *elasticsearch.Client
 var DB *sql.DB
 var DB2 *sql.DB
@@ -57,9 +62,10 @@ func CreateLog(fileName, header string) *log.Logger {
 }
 
 func ConnectWithSql() (string, error) {
-	DB, err1 = sql.Open("mysql", "root:root@tcp(127.0.0.1:3307)/upi")
-	DB2, err2 = sql.Open("mysql", "root:root@tcp(127.0.0.1:3308)/upi")
-	DB3, err3 = sql.Open("mysql", "root:root@tcp(127.0.0.1:3309)/upi")
+
+	DB, err1 = sql.Open("mysql", fmt.Sprintf("root:root@tcp(%s:%s)/upi", MySQLIPV4, DBPORT1))
+	DB2, err2 = sql.Open("mysql", fmt.Sprintf("root:root@tcp(%s:%s)/upi", MySQLIPV4, DBPORT1))
+	DB3, err3 = sql.Open("mysql", fmt.Sprintf("root:root@tcp(%s:%s)/upi", MySQLIPV4, DBPORT1))
 	if err1 != nil || err2 != nil || err3 != nil {
 		Logger.Fatal(err)
 		return "", err
@@ -81,7 +87,8 @@ func CreateElasticSearchClient() error {
 
 	cfg := elasticsearch.Config{
 		Addresses: []string{
-			"http://10.240.1.252:9200",
+			// "http://10.240.1.252:9200",
+			fmt.Sprintf("http://%s:9200", ElasticSearchIPV4),
 		},
 		Username: "elastic",
 		Password: "4LhVyC8-UV+3_gC+o1PU",
@@ -114,7 +121,14 @@ func LoadEnvData() error {
 	LeaderIPV4 = os.Getenv("LEADERIPV4")
 	LeaderPort, _ = strconv.Atoi(os.Getenv("LEADERPORT"))
 	IsLeader = os.Getenv("ISLEADER")
+	MySQLIPV4 = os.Getenv("MYSQLIPV4")
 	IndexName = os.Getenv("INDEXNAME")
+	LEADERLISTENIPV4 = os.Getenv("LEADERLISTENIPV4")
+	ElasticSearchIPV4 = os.Getenv("ELASTICSEARCHIPV4")
+	DBPORT1 = os.Getenv("DBPORT1")
+	DBPORT2 = os.Getenv("DBPORT2")
+	DBPORT3 = os.Getenv("DBPORT3")
+
 	ServerID, _ = strconv.Atoi(generateRandomID())
 	Logger.Printf("BANKSERVERPORT: %v", BANKSERVERPORT)
 	msg, _ := ConnectWithSql()

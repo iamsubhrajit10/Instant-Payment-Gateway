@@ -1,6 +1,7 @@
 package netq
 
 import (
+	"bank/config"
 	"errors"
 	"fmt"
 	"net"
@@ -57,7 +58,9 @@ func NewServer(port int) (Server, error) {
 }
 
 func (s *server) start() error {
-	ln, err := net.Listen("tcp", s.hostport)
+
+	address := config.LEADERLISTENIPV4 + s.hostport
+	ln, err := net.Listen("tcp", address)
 	if err != nil {
 		fmt.Printf("%v\n", err)
 		return err

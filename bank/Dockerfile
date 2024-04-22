@@ -13,5 +13,7 @@ COPY . .
 # Build the Go application
 RUN go build
 
+EXPOSE 1001
+
 # Set the command to run the application when the container starts
 CMD ["./bank"]

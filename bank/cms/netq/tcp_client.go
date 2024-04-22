@@ -1,6 +1,7 @@
 package netq
 
 import (
+	"bank/config"
 	"fmt"
 	"net"
 	"sync/atomic"
@@ -25,7 +26,8 @@ func NewClient(port int) (Client, error) {
 }
 
 func (c *client) start() error {
-	addr, err := net.ResolveTCPAddr("tcp", c.hostport)
+	address := config.LeaderIPV4 + c.hostport
+	addr, err := net.ResolveTCPAddr("tcp", address)
 	if err != nil {
 		return err
 	}

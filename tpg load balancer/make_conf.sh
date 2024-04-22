@@ -1,8 +1,8 @@
 #!/bin/bash
 
 # Get the private IP address of the computer
-private_ip=$(ifconfig | grep 'inet ' | grep -v '127.0.0.1' | awk '{print $2}' | head -n 1)
-
+#private_ip=$(ifconfig | grep 'inet ' | grep -v '127.0.0.1' | awk '{print $2}' | head -n 1)
+private_ip=10.240.1.252
 # Define the upstream servers with the private IP address
 upstream_servers="server $private_ip:8001;
         server $private_ip:8002;
