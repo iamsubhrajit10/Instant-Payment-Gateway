@@ -1,75 +1,110 @@
 version: '3.8'
 
-services:
-  tpgLB:
-    image: lb-tpg
-    ports:
-      - "8088:80"
+networks:
+  mynetwork:
+    driver: bridge
+
+services:  
   tpg1:
-    image: tpg
-    ports:
-      - "8001:8081"
+    image: tpg:latest
+    # ports:
+    #   - "8001:8081"
+    networks:
+      - mynetwork
+  
   tpg2:
-    image: tpg
-    ports:
-      - "8002:8081"
+    image: tpg:latest
+    # ports:
+    #   - "8002:8081"
+    networks:
+      - mynetwork
+  
   tpg3:
-    image: tpg
+    image: tpg:latest
+    # ports:
+    #   - "8003:8081"
+    networks:
+      - mynetwork
+  
+  tpgLB:
+    image: tpgloadbalancer:latest
     ports:
-      - "8003:8081"
-  resolverlb:
-    image: lb_resolver
-    ports:
-      - "4001:30"
-  resolver1:
-    image: resolver
-    ports:
-      - "3001:3003"
-  resolver2:
-    image: resolver
-    ports:
-      - "3002:3003"
-  resolver3:
-    image: resolver
-    ports:
-      - "3003:3003"
-  bankLB:
-    image: lb_bank1
-    ports:
-      - "5001:50"
-  bank_leader:
-    image: leader_bank1
-    ports:
-      - "9001:8001"
-      - "1001:1001"
-  bank1:
-    image: bank1
-    ports:
-      - "9002:8001"
-  bank2:
-    image: bank1
-    ports:
-      - "9003:8001"
-  sql1:
-    image: my-mysql1
-    environment:
-      MYSQL_ROOT_PASSWORD: root
-      MYSQL_DATABASE: upi
-    ports:
-      - "3301:3306"
-  sql2:
-    image: my-mysql2
-    environment:
-      MYSQL_ROOT_PASSWORD: root
-      MYSQL_DATABASE: upi
-    ports:
-      - "3302:3306"
-  sql3:
-    image: my-mysql3
-    environment:
-      MYSQL_ROOT_PASSWORD: root
-      MYSQL_DATABASE: upi
-    ports:
-      - "3303:3306"
+      - "80:80"
+    networks:
+      - mynetwork
+  # resolverlb:
+  #   image: lb_resolver
+  #   containter-name: resolverlb
+  #   ports:
+  #     - "4001:30"
+  
+  # resolver1:
+  #   containter-name: resolver1
+  #   image: resolver
+  #   ports:
+  #     - "3001:3003"
+  
+  # resolver2:
+  #   image: resolver
+  #   container-name: resolver2
+  #   ports:
+  #     - "3002:3003"
+  # resolver3:
+  #   image: resolver
+  #   container-name: resolver3
+  #   ports:
+  #     - "3003:3003"
+  
+  # bankLB:
+  #   image: lb_bank1
+  #   container-name: bankLB
+  #   ports:
+  #     - "5001:50"
+  
+  # bank_leader:
+  #   image: leader_bank1
+  #   containter-name: bank_leader
+  #   ports:
+  #     - "9001:8001"
+  #     - "1001:1001"
+  
+  # bank1:
+  #   image: bank1
+  #   container-name: bank1
+  #   ports:
+  #     - "9002:8001"
+  
+  # bank2:
+  #   image: bank1
+  #   container-name: bank2
+  #   ports:
+  #     - "9003:8001"
+  
+  # sql1:
+  #   image: my-mysql1
+  #   container-name: sql1
+  #   environment:
+  #     MYSQL_ROOT_PASSWORD: root
+  #     MYSQL_DATABASE: upi
+  #   ports:
+  #     - "3301:3306"
+  
+  # sql2:
+  #   image: my-mysql2
+  #   container-name: sql2
+  #   environment:
+  #     MYSQL_ROOT_PASSWORD: root
+  #     MYSQL_DATABASE: upi
+  #   ports:
+  #     - "3302:3306"
+  
+  # sql3:
+  #   image: my-mysql3
+  #   container-name: sql3
+  #   environment:
+  #     MYSQL_ROOT_PASSWORD: root
+  #     MYSQL_DATABASE: upi
+  #   ports:
+  #     - "3303:3306"
   
 
