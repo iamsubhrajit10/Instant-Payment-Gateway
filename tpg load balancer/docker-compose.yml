@@ -1,0 +1,7 @@
+version: '3'
+
+services:
+  loadbalancer:
+    image: loadbalancer:latest
+    ports:
+      - "80:80"
