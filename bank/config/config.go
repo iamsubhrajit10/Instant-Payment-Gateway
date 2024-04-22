@@ -84,7 +84,6 @@ func ConnectWithSql() (string, error) {
 func CreateElasticSearchClient() error {
 	// Create a new Elasticsearch client and connect to http://
 	//	Client, err = elasticsearch.NewDefaultClient()
-
 	cfg := elasticsearch.Config{
 		Addresses: []string{
 			// "http://10.240.1.252:9200",

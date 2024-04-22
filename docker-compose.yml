@@ -1,6 +1,27 @@
 version: '3.8'
 
 services:
+  sql1:
+    image: my-mysql1
+    environment:
+      MYSQL_ROOT_PASSWORD: root
+      MYSQL_DATABASE: upi
+    ports:
+      - "3301:3306"
+  sql2:
+    image: my-mysql2
+    environment:
+      MYSQL_ROOT_PASSWORD: root
+      MYSQL_DATABASE: upi
+    ports:
+      - "3302:3306"
+  sql3:
+    image: my-mysql3
+    environment:
+      MYSQL_ROOT_PASSWORD: root
+      MYSQL_DATABASE: upi
+    ports:
+      - "3303:3306"
   tpgLB:
     image: lb-tpg
     ports:
@@ -50,26 +71,6 @@ services:
     image: bank1
     ports:
       - "9003:8001"
-  sql1:
-    image: my-mysql1
-    environment:
-      MYSQL_ROOT_PASSWORD: root
-      MYSQL_DATABASE: upi
-    ports:
-      - "3301:3306"
-  sql2:
-    image: my-mysql2
-    environment:
-      MYSQL_ROOT_PASSWORD: root
-      MYSQL_DATABASE: upi
-    ports:
-      - "3302:3306"
-  sql3:
-    image: my-mysql3
-    environment:
-      MYSQL_ROOT_PASSWORD: root
-      MYSQL_DATABASE: upi
-    ports:
-      - "3303:3306"
+ 
   
 

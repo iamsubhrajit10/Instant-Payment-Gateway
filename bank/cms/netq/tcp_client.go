@@ -31,7 +31,9 @@ func (c *client) start() error {
 	if err != nil {
 		return err
 	}
+	// net.Dial()
 	conn, err := net.DialTCP("tcp", nil, addr)
+
 	if err != nil {
 		return err
 	}
