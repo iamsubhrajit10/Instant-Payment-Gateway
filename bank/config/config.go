@@ -138,7 +138,21 @@ func LoadEnvData() error {
 
 	log.Printf("BANKSERVERPORT: %v", BANKSERVERPORT)
 	time.Sleep(10 * time.Second)
-	msg, _ := ConnectWithSql()
+	msg, err = ConnectWithSql()
+	// for i := 0; i < 3; i++ {
+
+	// 	if err == nil {
+	// 		break
+	// 	}
+	// 	time.Sleep(5 * time.Second)
+	// }
+
+	if err != nil {
+		Logger.Fatalf("Error connecting to sql: %v", err)
+		return err
+	}
+
+	//msg, _ := ConnectWithSql()
 	Logger.Printf("IndexName: %v", IndexName)
 	err = CreateElasticSearchClient()
 	if err != nil {

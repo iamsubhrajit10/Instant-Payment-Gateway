@@ -22,7 +22,6 @@ package main
 import (
 	cms "bank/cms"
 	"bank/config"
-	lock_manager "bank/lock_manager"
 	pb "bank/protos"
 	"bytes"
 	"context"
@@ -30,6 +29,7 @@ import (
 	"encoding/json"
 	"flag"
 	"fmt"
+	"io/ioutil"
 	"log"
 	"math/rand"
 	"net"
@@ -60,7 +60,11 @@ type server struct {
 }
 
 type ResponseStruct struct {
-	Message []string
+	Message []string `json:"Message"`
+}
+type Request struct {
+	RequestType string   `json:"requestType"`
+	Accounts    []string `json:"accounts"`
 }
 
 type CentLockMangStruct struct {
@@ -318,8 +322,8 @@ func processDebitRequest(RequestData RequestDataBank) (string, error) {
 	}
 	url := fmt.Sprintf("http://%v:1323/get-lock", config.LeaderIPV4)
 
-	var req lock_manager.Request
-	req = lock_manager.Request{
+	var req Request
+	req = Request{
 		RequestType: "request",
 		Accounts:    []string{RequestData.AccountNumber},
 	}
@@ -328,27 +332,41 @@ func processDebitRequest(RequestData RequestDataBank) (string, error) {
 	if err != nil {
 		return "Error marshalling request", fmt.Errorf("Error marshalling request")
 	}
-	request, error := http.NewRequest("POST", url, bytes.NewBuffer(jsonData))
+	request, err := http.NewRequest("POST", url, bytes.NewBuffer(jsonData))
 	request.Header.Set("Content-Type", "application/json; charset=UTF-8")
 
 	client := &http.Client{}
-	response, error := client.Do(request)
-
-	if error != nil {
-		log.Fatalf(error.Error())
+	response, err := client.Do(request)
+	if err != nil {
+		log.Fatalf(err.Error())
 		return "Error sending request", fmt.Errorf("Error sending request")
 	}
+
+	// Read the response body
+	body, err := ioutil.ReadAll(response.Body)
+	if err != nil {
+		log.Fatalf("Error reading response body: %v", err)
+		return "Error reading response body", fmt.Errorf("Error reading response body")
+	}
+
 	//parse response into the  array of accounts
 	//var accounts []string
 	//accounts := map[string]interface{}{}
-	var response_ ResponseStruct
-	err = json.NewDecoder(response.Body).Decode(&response_)
-	fmt.Println("%v", response_.Message)
 
-	if len(response_.Message) != 0 {
+	// Unmarshal the response body into the struct
+	var ress ResponseStruct
+	err = json.Unmarshal(body, &ress)
+	if err != nil {
+		log.Fatalf("Error unmarshalling response: %v", err)
+		return "Error unmarshalling response", fmt.Errorf("Error unmarshalling response")
+	}
+
+	log.Printf("%v", ress)
+
+	if len(ress.Message) != 0 {
 		msg, err := work(RequestData)
 
-		req = lock_manager.Request{
+		req = Request{
 			RequestType: "release",
 			Accounts:    []string{RequestData.AccountNumber},
 		}
@@ -468,8 +486,8 @@ func processReverseRequest(RequestData RequestDataBank) (string, error) {
 
 		url := fmt.Sprintf("http://%v:1323/get-lock", config.LeaderIPV4)
 
-		var req lock_manager.Request
-		req = lock_manager.Request{
+		var req Request
+		req = Request{
 			RequestType: "request",
 			Accounts:    []string{RequestData.AccountNumber},
 		}
@@ -478,24 +496,44 @@ func processReverseRequest(RequestData RequestDataBank) (string, error) {
 			return "Error marshalling request", fmt.Errorf("Error marshalling request")
 		}
 		request, error := http.NewRequest("POST", url, bytes.NewBuffer(jsonData))
+		if error != nil {
+			log.Printf("Error creating request: %v", error)
+			return "Error creating request", fmt.Errorf("Error creating request")
+		}
 		request.Header.Set("Content-Type", "application/json; charset=UTF-8")
 
 		client := &http.Client{}
 		response, error := client.Do(request)
-
+		log.Printf("Response: %v", response)
 		if error != nil {
 			log.Fatalf(error.Error())
 			return "Error sending request", fmt.Errorf("Error sending request")
 		}
-		//parse response into the  array of accounts
-		var response_ ResponseStruct
-		err = json.NewDecoder(response.Body).Decode(&response_)
-		fmt.Println("%v", response_.Message)
 
-		if len(response_.Message) != 0 {
+		body, err := ioutil.ReadAll(response.Body)
+		if err != nil {
+			log.Fatalf("Error reading response body: %v", err)
+			return "Error reading response body", fmt.Errorf("Error reading response body")
+		}
+
+		//parse response into the  array of accounts
+		//var accounts []string
+		//accounts := map[string]interface{}{}
+
+		// Unmarshal the response body into the struct
+		var ress ResponseStruct
+		err = json.Unmarshal(body, &ress)
+		if err != nil {
+			log.Fatalf("Error unmarshalling response: %v", err)
+			return "Error unmarshalling response", fmt.Errorf("Error unmarshalling response")
+		}
+
+		//parse response into the  array of account
+
+		if len(ress.Message) != 0 {
 			msg, err := work(RequestData)
 
-			req = lock_manager.Request{
+			req = Request{
 				RequestType: "release",
 				Accounts:    []string{RequestData.AccountNumber},
 			}
@@ -538,8 +576,8 @@ func CreditProcessing(port int) {
 
 		url := fmt.Sprintf("http://%v:1323/get-lock", config.LeaderIPV4)
 
-		var req lock_manager.Request
-		req = lock_manager.Request{
+		var req Request
+		req = Request{
 			RequestType: "request",
 			Accounts:    creditAccountNumbers,
 		}
@@ -559,10 +597,31 @@ func CreditProcessing(port int) {
 			//return "Error sending request", fmt.Errorf("Error sending request")
 			continue
 		}
+
+		body, err := ioutil.ReadAll(response.Body)
+		if err != nil {
+			log.Fatalf("Error reading response body: %v", err)
+			continue
+			//return "Error reading response body", fmt.Errorf("Error reading response body")
+		}
+
 		//parse response into the  array of accounts
-		var response_ ResponseStruct
-		err = json.NewDecoder(response.Body).Decode(&response_)
-		fmt.Println("%v", response_.Message)
+		//var accounts []string
+		//accounts := map[string]interface{}{}
+
+		// Unmarshal the response body into the struct
+		var ress ResponseStruct
+		err = json.Unmarshal(body, &ress)
+		if err != nil {
+			log.Fatalf("Error unmarshalling response: %v", err)
+			continue
+			//return "Error unmarshalling response", fmt.Errorf("Error unmarshalling response")
+		}
+
+		//parse response into the  array of accounts
+		// var response_ ResponseStruct
+		// err = json.NewDecoder(response.Body).Decode(&response_)
+		// fmt.Println("%v", response_.Message)
 
 		// dl, err := NewDislock(port)
 		// accountNumbers, err := dl.Acquire(creditAccountNumbers, "credit")
@@ -583,7 +642,7 @@ func CreditProcessing(port int) {
 			}
 		}
 
-		for _, accountNumber := range response_.Message {
+		for _, accountNumber := range ress.Message {
 
 			creditLock[accountNumber].Lock()
 			Failed_Transaction := make([]creditData, 0)
@@ -653,7 +712,7 @@ func CreditProcessing(port int) {
 			creditLock[accountNumber].Unlock()
 		}
 
-		req = lock_manager.Request{
+		req = Request{
 			RequestType: "release",
 			Accounts:    creditAccountNumbers,
 		}
@@ -703,7 +762,7 @@ func processGRPCMessage(msg string) (string, error) {
 		}
 	case "credit":
 		{
-			msg, err := processDebitRequest(data)
+			msg, err := processCreditRequest(data)
 			if err != nil {
 				return "", err
 			}
@@ -712,7 +771,7 @@ func processGRPCMessage(msg string) (string, error) {
 
 	case "reverse":
 		{
-			msg, err := processDebitRequest(data)
+			msg, err := processReverseRequest(data)
 			if err != nil {
 				return "", err
 			}
@@ -720,6 +779,7 @@ func processGRPCMessage(msg string) (string, error) {
 		}
 
 	}
+
 	return "", nil
 }
 
@@ -745,7 +805,11 @@ func (s *server) UnarryCall(ctx context.Context, in *pb.Clientmsg) (*pb.Serverms
 // }
 
 func main() {
-	config.LoadEnvData()
+	err := config.LoadEnvData()
+	if err != nil {
+		log.Fatalf("Error loading .env file")
+	}
+
 	// if config.IsLeader == "TRUE" {
 	// 	go func() {
 	// 		lock_manager.StartServer()
@@ -779,7 +843,7 @@ func main() {
 
 	// Create the gRPC server with the keepalive options
 	s := grpc.NewServer(kaOption, kepOption)
-
+	log.Printf("Server started on port %v", *port)
 	pb.RegisterDetailsServer(s, &server{})
 	log.Printf("server listening at %v", lis.Addr())
 	if err := s.Serve(lis); err != nil {

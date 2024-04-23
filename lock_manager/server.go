@@ -84,6 +84,7 @@
 package main
 
 import (
+	"encoding/json"
 	"log"
 	"net/http"
 	"sync"
@@ -99,6 +100,10 @@ type Request struct {
 type AccountLock struct {
 	Locked bool
 	Mutex  sync.Mutex
+}
+
+type ResponseStruct struct {
+	Message []string `json:"Message"`
 }
 
 var LockStats = sync.Map{}
@@ -143,7 +148,14 @@ func main() {
 		}
 		if req.RequestType == "request" {
 			accounts := GetLocksOnAvailableAccounts(req.Accounts)
-			return c.JSON(http.StatusOK, accounts)
+			acc := ResponseStruct{Message: accounts}
+			a, err := json.Marshal(acc)
+			if err != nil {
+				return err
+			}
+			log.Printf("account %v", accounts)
+			log.Printf("c.JSON %v", string(a))
+			return c.JSON(http.StatusOK, acc)
 		} else if req.RequestType == "release" {
 			ReleaseLocksOnAccounts(req.Accounts)
 			return c.JSON(http.StatusOK, "Locks released")
