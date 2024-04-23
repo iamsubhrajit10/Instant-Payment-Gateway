@@ -22,7 +22,9 @@ package main
 import (
 	cms "bank/cms"
 	"bank/config"
+	lock_manager "bank/lock_manager"
 	pb "bank/protos"
+	"bytes"
 	"context"
 	"database/sql"
 	"encoding/json"
@@ -30,6 +32,7 @@ import (
 	"fmt"
 	"math/rand"
 	"net"
+	"net/http"
 	"time"
 
 	//"strconv"
@@ -78,22 +81,66 @@ func processDebitRequest(RequestData RequestDataBank) (string, error) {
 
 	config.Logger.Printf("Processing debit request: %v", RequestData)
 
-	p, err := cms.NewProcess(config.LeaderPort, RequestData.AccountNumber, RequestData.Type)
-	if err != nil {
-		config.Logger.Printf("client create error: %v.\n", err.Error())
-		return "", err
+	// p, err := cms.NewProcess(config.LeaderPort, RequestData.AccountNumber, RequestData.Type)
+	// if err != nil {
+	// 	config.Logger.Printf("client create error: %v.\n", err.Error())
+	// 	return "", err
+	// }
+	if config.IsLeader == "TRUE" {
+		accounts := lock_manager.GetLocksOnAvailableAccounts([]string{RequestData.AccountNumber})
+		fmt.Println("I have locks on:%v", accounts)
+		//perform the bank thing here
+
+		if len(accounts) != 0 {
+			able := lock_manager.ReleaseLocksOnAccounts(accounts)
+			if !able {
+				return "Error releasing locks", fmt.Errorf("Error releasing locks")
+			}
+		}
+	} else {
+		// send request to leader
+		url := fmt.Sprintf("http://%v:1323/get-lock", config.LeaderIPV4)
+
+		var req lock_manager.Request
+		req = lock_manager.Request{
+			RequestType: "request",
+			Accounts:    []string{RequestData.AccountNumber},
+		}
+		jsonData, err := json.Marshal(req)
+		if err != nil {
+			return "Error marshalling request", fmt.Errorf("Error marshalling request")
+		}
+		request, error := http.NewRequest("POST", url, bytes.NewBuffer(jsonData))
+		request.Header.Set("Content-Type", "application/json; charset=UTF-8")
+
+		client := &http.Client{}
+		response, error := client.Do(request)
+
+		if error != nil {
+			panic(error)
+		}
+		//parse response into the  array of accounts
+		var accounts []string
+		err = json.NewDecoder(response.Body).Decode(&accounts)
+		if err != nil {
+			fmt.Println("Error decoding response:", err)
+			return "Error decoding response", fmt.Errorf("Error decoding response")
+		}
+		fmt.Println("I have locks on:%v", accounts)
+		defer response.Body.Close()
+
 	}
 
-	msg, err_ := p.Run(RequestData.AccountNumber, RequestData.Type, cms.RequestDataBank(RequestData))
-	if err_ != nil {
-		config.Logger.Printf("Debit request for transaction id %v failed with error: %v.\n", RequestData.TransactionID, err_.Error())
-		return "", err_
-	}
+	// msg, err_ := p.Run(RequestData.AccountNumber, RequestData.Type, cms.RequestDataBank(RequestData))
+	// if err_ != nil {
+	// 	config.Logger.Printf("Debit request for transaction id %v failed with error: %v.\n", RequestData.TransactionID, err_.Error())
+	// 	return "", err_
+	// }
 
-	if msg != "Debit Success" {
-		config.Logger.Printf("Debit request for transaction id %v failed with error: %v.\n", RequestData.TransactionID, msg)
-		return msg, nil
-	}
+	// if msg != "Debit Success" {
+	// 	config.Logger.Printf("Debit request for transaction id %v failed with error: %v.\n", RequestData.TransactionID, msg)
+	// 	return msg, nil
+	// }
 
 	return "Debit request processed", nil
 }
@@ -160,7 +207,7 @@ func processGRPCMessage(msg string) (string, error) {
 		}
 	case "credit":
 		{
-			msg, err := processCreditRequest(data)
+			msg, err := processDebitRequest(data)
 			if err != nil {
 				return "", err
 			}
@@ -169,7 +216,7 @@ func processGRPCMessage(msg string) (string, error) {
 
 	case "reverse":
 		{
-			msg, err := processReverseRequest(data)
+			msg, err := processDebitRequest(data)
 			if err != nil {
 				return "", err
 			}
@@ -203,10 +250,11 @@ func initializeLearderServer() {
 func main() {
 	config.LoadEnvData()
 	if config.IsLeader == "TRUE" {
-		config.Logger.Printf("Bank server is the leader")
-		initializeLearderServer()
+		go func() {
+			lock_manager.StartServer()
+		}()
 	}
-	go cms.CreditProcessing(config.LeaderPort)
+	// go cms.CreditProcessing(config.LeaderPort)
 	port = flag.Int("port", config.BANKSERVERPORT, "The server port")
 	flag.Parse()
 	lis, err := net.Listen("tcp", fmt.Sprintf(":%d", *port))
@@ -235,7 +283,7 @@ func main() {
 	// Create the gRPC server with the keepalive options
 	s := grpc.NewServer(kaOption, kepOption)
 
-	pb.RegisterDetailsServer(s, &server{})
+	pb.RegisterDetawilsServer(s, &server{})
 	config.Logger.Printf("server listening at %v", lis.Addr())
 	if err := s.Serve(lis); err != nil {
 		config.Logger.Fatalf("failed to serve: %v", err)

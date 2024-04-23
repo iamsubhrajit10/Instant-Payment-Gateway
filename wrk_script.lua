@@ -3,17 +3,19 @@ wrk.headers['Content-Type'] = 'application/json'
 counter = 0
 request = function()
   counter = counter + 1
+  local paymentId1 = (counter * 2) - 1
+  local paymentId2 = counter * 2
   local body = [[
 {
     "Requests":[
         {
             "TransactionID": "]] .. counter .. [[",
-            "PaymentID": "1",
+            "PaymentID": "]] .. paymentId1 .. [[",
             "Type": "resolve"
         },
         {
             "TransactionID": "]] .. counter .. [[",
-            "PaymentID": "2",
+            "PaymentID": "]] .. paymentId2 .. [[",
             "Type": "resolve"
         }
     ]
