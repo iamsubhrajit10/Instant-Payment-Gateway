@@ -1,12 +1,13 @@
 #!/bin/bash
 
-url="http://10.240.2.146:8088/transfer"  # Replace with your server URL
-total_requests=1000 # Total number of requests
+url="http://10.0.118.104:8088/transfer"  # Replace with your server URL
+total_requests=1 # Total number of requests
 duration=10 # Duration in seconds
-threads=4  # Number of threads
+threads=1  # Number of threads
 
 # Generate a Lua script for wrk
 lua_script="wrk_script.lua"
+
 echo "wrk.method = 'POST'" > $lua_script
 echo "wrk.headers['Content-Type'] = 'application/json'" >> $lua_script
 echo "counter = 0" >> $lua_script

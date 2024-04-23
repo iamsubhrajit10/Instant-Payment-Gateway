@@ -59,6 +59,10 @@ type server struct {
 	pb.UnimplementedDetailsServer
 }
 
+type ResponseStruct struct {
+	Message []string
+}
+
 type CentLockMangStruct struct {
 	clm *cms.CentLockMang
 }
@@ -319,6 +323,7 @@ func processDebitRequest(RequestData RequestDataBank) (string, error) {
 		RequestType: "request",
 		Accounts:    []string{RequestData.AccountNumber},
 	}
+	log.Print(req)
 	jsonData, err := json.Marshal(req)
 	if err != nil {
 		return "Error marshalling request", fmt.Errorf("Error marshalling request")
@@ -334,11 +339,13 @@ func processDebitRequest(RequestData RequestDataBank) (string, error) {
 		return "Error sending request", fmt.Errorf("Error sending request")
 	}
 	//parse response into the  array of accounts
-	var accounts []string
-	err = json.NewDecoder(response.Body).Decode(&accounts)
-	fmt.Println("%v", response.Body)
+	//var accounts []string
+	//accounts := map[string]interface{}{}
+	var response_ ResponseStruct
+	err = json.NewDecoder(response.Body).Decode(&response_)
+	fmt.Println("%v", response_.Message)
 
-	if len(accounts) != 0 {
+	if len(response_.Message) != 0 {
 		msg, err := work(RequestData)
 
 		req = lock_manager.Request{
@@ -481,11 +488,11 @@ func processReverseRequest(RequestData RequestDataBank) (string, error) {
 			return "Error sending request", fmt.Errorf("Error sending request")
 		}
 		//parse response into the  array of accounts
-		var accounts []string
-		err = json.NewDecoder(response.Body).Decode(&accounts)
-		fmt.Println("%v", response.Body)
+		var response_ ResponseStruct
+		err = json.NewDecoder(response.Body).Decode(&response_)
+		fmt.Println("%v", response_.Message)
 
-		if len(accounts) != 0 {
+		if len(response_.Message) != 0 {
 			msg, err := work(RequestData)
 
 			req = lock_manager.Request{
@@ -517,6 +524,164 @@ func processReverseRequest(RequestData RequestDataBank) (string, error) {
 	}
 
 	return "Transaction Reversed", nil
+}
+
+func CreditProcessing(port int) {
+	for {
+
+		globalLock.Lock()
+		creditAccountNumbers = make([]string, 0)
+		for key, _ := range creditMap {
+			creditAccountNumbers = append(creditAccountNumbers, key)
+		}
+		globalLock.Unlock()
+
+		url := fmt.Sprintf("http://%v:1323/get-lock", config.LeaderIPV4)
+
+		var req lock_manager.Request
+		req = lock_manager.Request{
+			RequestType: "request",
+			Accounts:    creditAccountNumbers,
+		}
+		jsonData, err := json.Marshal(req)
+		if err != nil {
+			//return "Error marshalling request", fmt.Errorf("Error marshalling request")
+			continue
+		}
+		request, error := http.NewRequest("POST", url, bytes.NewBuffer(jsonData))
+		request.Header.Set("Content-Type", "application/json; charset=UTF-8")
+
+		client := &http.Client{}
+		response, error := client.Do(request)
+
+		if error != nil {
+			log.Fatalf(error.Error())
+			//return "Error sending request", fmt.Errorf("Error sending request")
+			continue
+		}
+		//parse response into the  array of accounts
+		var response_ ResponseStruct
+		err = json.NewDecoder(response.Body).Decode(&response_)
+		fmt.Println("%v", response_.Message)
+
+		// dl, err := NewDislock(port)
+		// accountNumbers, err := dl.Acquire(creditAccountNumbers, "credit")
+		// if err != nil {
+		// 	log.Printf(" Account Number :- (%v) create error: %v.\n", creditAccountNumbers, err.Error())
+		// 	continue
+		// 	//return nil, err
+		// }
+		err1 := config.DB.Ping()
+		err2 := config.DB2.Ping()
+		err3 := config.DB3.Ping()
+
+		if err1 != nil || err2 != nil || err3 != nil {
+			log.Printf("Error connecting to the database: %v", err1)
+			_, err := config.ConnectWithSql()
+			if err != nil {
+				continue
+			}
+		}
+
+		for _, accountNumber := range response_.Message {
+
+			creditLock[accountNumber].Lock()
+			Failed_Transaction := make([]creditData, 0)
+			db := config.DB
+			acc, err := strconv.Atoi(accountNumber)
+			if err != nil {
+				log.Printf("Error converting account number to integer: %v", err)
+				continue
+			}
+			remains := acc % 3
+			switch remains {
+			case 0:
+				db = config.DB
+			case 1:
+				db = config.DB2
+			case 2:
+				db = config.DB3
+			}
+			sum := 0
+			//transactionLogs := make([]transactionLog, 0)
+			for _, data := range creditMap[accountNumber] {
+				sum = sum + data.amount
+				// transactionLog := transactionLog{TransactionID: data.transactionID, AccountNumber: data.accountNumber, Amount: data.amount, Type: "credit"}
+				// transactionLogs = append(transactionLogs, transactionLog)
+			}
+
+			results, err := db.Query("SELECT Amount FROM bank_details WHERE AccountNumber = ?", accountNumber)
+			if err != nil {
+				log.Fatal(err)
+				Failed_Transaction = creditMap[accountNumber]
+				continue
+			}
+
+			for results.Next() {
+				var amount int
+				err = results.Scan(&amount)
+				if err != nil {
+					log.Fatal(err)
+					Failed_Transaction = creditMap[accountNumber]
+					continue
+				}
+				amount = amount + sum
+				_, err := db.Exec("UPDATE bank_details SET Amount = ? WHERE AccountNumber = ?", amount, accountNumber)
+				if err != nil {
+					log.Fatal(err)
+					Failed_Transaction = creditMap[accountNumber]
+					continue
+				}
+				//creditMap[accountNumber] = append(creditMap[accountNumber][:index], creditMap[accountNumber][index+1:]...)
+
+				//return "", nil
+			}
+
+			for _, data := range creditMap[accountNumber] {
+				//sum=sum+data.amount
+				transactionLog := transactionLog{TransactionID: data.transactionID, AccountNumber: data.accountNumber, Amount: data.amount, Type: "credit"}
+				transactionString, _ := json.Marshal(transactionLog)
+				config.Client.Index(config.IndexName, bytes.NewReader(transactionString))
+				//transactionLogs = append(transactionLogs, transactionLog)
+			}
+
+			if len(Failed_Transaction) == 0 {
+				delete(creditMap, accountNumber)
+			} else {
+				creditMap[accountNumber] = Failed_Transaction
+			}
+			creditLock[accountNumber].Unlock()
+		}
+
+		req = lock_manager.Request{
+			RequestType: "release",
+			Accounts:    creditAccountNumbers,
+		}
+		jsonData, err = json.Marshal(req)
+		if err != nil {
+			//return "Error marshalling request", fmt.Errorf("Error marshalling request")
+			continue
+		}
+		request, error = http.NewRequest("POST", url, bytes.NewBuffer(jsonData))
+		request.Header.Set("Content-Type", "application/json; charset=UTF-8")
+
+		client = &http.Client{}
+		response, error = client.Do(request)
+
+		if error != nil {
+			log.Fatalf(error.Error())
+			//return "Error sending request", fmt.Errorf("Error sending request")
+			continue
+		}
+
+		// err = dl.Release(accountNumbers, "credit")
+		// if err != nil {
+		// 	log.Printf(" Account Number :- (%v) create error: %v.\n", creditAccountNumbers, err.Error())
+		// 	continue
+		// 	//return nil, err
+		// }
+		time.Sleep(3 * time.Second)
+	}
 }
 
 func processGRPCMessage(msg string) (string, error) {
@@ -586,7 +751,7 @@ func main() {
 	// 		lock_manager.StartServer()
 	// 	}()
 	// }
-	// go cms.CreditProcessing(config.LeaderPort)
+	go CreditProcessing(config.LeaderPort)
 	port = flag.Int("port", config.BANKSERVERPORT, "The server port")
 	flag.Parse()
 	lis, err := net.Listen("tcp", fmt.Sprintf(":%d", *port))

@@ -1,0 +1,10 @@
+Running 10s test @ http://10.0.118.104:8088/transfer
+  1 threads and 1 connections
+  Thread Stats   Avg      Stdev     Max   +/- Stdev
+    Latency   164.85ms  421.68ms   1.96s    89.02%
+    Req/Sec    12.51k    13.30k   33.54k    85.71%
+  10646 requests in 10.02s, 3.19MB read
+  Socket errors: connect 0, read 0, write 0, timeout 1
+  Non-2xx or 3xx responses: 10646
+Requests/sec:   1062.65
+Transfer/sec:    325.85KB
