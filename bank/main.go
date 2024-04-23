@@ -30,9 +30,12 @@ import (
 	"encoding/json"
 	"flag"
 	"fmt"
+	"log"
 	"math/rand"
 	"net"
 	"net/http"
+	"strconv"
+	"sync"
 	"time"
 
 	//"strconv"
@@ -46,6 +49,11 @@ var msg string
 var err error
 var DB *sql.DB
 
+var creditMap map[string][]creditData = make(map[string][]creditData)
+var creditLock map[string]*sync.Mutex = make(map[string]*sync.Mutex)
+var globalLock *sync.Mutex = &sync.Mutex{}
+var creditAccountNumbers []string
+
 // server is used to implement helloworld.GreeterServer.
 type server struct {
 	pb.UnimplementedDetailsServer
@@ -53,6 +61,19 @@ type server struct {
 
 type CentLockMangStruct struct {
 	clm *cms.CentLockMang
+}
+
+type creditData struct {
+	transactionID string
+	accountNumber string
+	amount        int
+}
+
+type transactionLog struct {
+	TransactionID string
+	AccountNumber string
+	Amount        int
+	Type          string
 }
 
 type RequestDataBank struct {
@@ -77,7 +98,7 @@ func generateProcessId() string {
 	return fmt.Sprintf("%06d", rand.Intn(1000000))
 }
 
-func  work(data RequestDataBank) (string, error) {
+func work(data RequestDataBank) (string, error) {
 	db1 := config.DB
 	db2 := config.DB2
 	db3 := config.DB3
@@ -85,7 +106,7 @@ func  work(data RequestDataBank) (string, error) {
 
 	acc, err := strconv.Atoi(data.AccountNumber)
 	if err != nil {
-		config.Logger.Printf("Error converting account number to integer: %v", err)
+		log.Printf("Error converting account number to integer: %v", err)
 		return "", err
 	}
 	remains := acc % 3
@@ -101,10 +122,10 @@ func  work(data RequestDataBank) (string, error) {
 	switch data.Type {
 	case "debit":
 		{
-			config.Logger.Printf("Processing debit  request with DB operation: %v", data.AccountNumber)
+			log.Printf("Processing debit  request with DB operation: %v", data.AccountNumber)
 			err_ := db.Ping()
 			if err_ != nil {
-				config.Logger.Printf("Error connecting to the database: %v", err_)
+				log.Printf("Error connecting to the database: %v", err_)
 				msg, err := config.ConnectWithSql()
 				if err != nil {
 					return msg, err
@@ -112,7 +133,7 @@ func  work(data RequestDataBank) (string, error) {
 			}
 			results, err := db.Query("SELECT Amount FROM bank_details WHERE AccountNumber = ?", data.AccountNumber)
 			if err != nil {
-				config.Logger.Fatal(err)
+				log.Fatalf(err.Error())
 				return "", err
 			}
 			for results.Next() {
@@ -120,17 +141,17 @@ func  work(data RequestDataBank) (string, error) {
 				// for each row, scan the result into our tag composite object
 				err = results.Scan(&amount)
 				if err != nil {
-					config.Logger.Fatal(err)
+					log.Fatalf(err.Error())
 					return "", err
 				}
 				if amount < data.Amount {
-					config.Logger.Printf("Insufficient balance")
+					log.Printf("Insufficient balance")
 					return "Insufficient balance", nil
 				} else {
 					amount = amount - data.Amount
 					_, err := db.Exec("UPDATE bank_details SET Amount = ? WHERE AccountNumber = ?", amount, data.AccountNumber)
 					if err != nil {
-						config.Logger.Fatal(err)
+						log.Fatalf(err.Error())
 						return "", err
 					}
 					transactionLog := transactionLog{TransactionID: data.TransactionID, AccountNumber: data.AccountNumber, Amount: data.Amount, Type: data.Type}
@@ -144,7 +165,7 @@ func  work(data RequestDataBank) (string, error) {
 		}
 	case "reverse":
 		{
-			config.Logger.Printf("Processing debit reversal with DB operation: %v", data.AccountNumber)
+			log.Printf("Processing debit reversal with DB operation: %v", data.AccountNumber)
 			db1 := config.DB
 			db2 := config.DB2
 			db3 := config.DB3
@@ -152,7 +173,7 @@ func  work(data RequestDataBank) (string, error) {
 
 			acc, err := strconv.Atoi(data.AccountNumber)
 			if err != nil {
-				config.Logger.Printf("Error converting account number to integer: %v", err)
+				log.Printf("Error converting account number to integer: %v", err)
 				return "", err
 			}
 			remains := acc % 3
@@ -166,7 +187,7 @@ func  work(data RequestDataBank) (string, error) {
 			}
 			err_ := db.Ping()
 			if err_ != nil {
-				config.Logger.Printf("Error connecting to the database: %v", err_)
+				log.Printf("Error connecting to the database: %v", err_)
 				msg, err := config.ConnectWithSql()
 				if err != nil {
 					return msg, err
@@ -174,7 +195,7 @@ func  work(data RequestDataBank) (string, error) {
 			}
 			results, err := db.Query("SELECT Amount FROM bank_details WHERE AccountNumber = ?", data.AccountNumber)
 			if err != nil {
-				config.Logger.Fatal(err)
+				log.Fatalf(err.Error())
 				return "", err
 			}
 			for results.Next() {
@@ -182,13 +203,13 @@ func  work(data RequestDataBank) (string, error) {
 				// for each row, scan the result into our tag composite object
 				err = results.Scan(&amount)
 				if err != nil {
-					config.Logger.Fatal(err)
+					log.Fatalf(err.Error())
 					return "", err
 				}
 				amount = amount + data.Amount
 				_, err := db.Exec("UPDATE bank_details SET Amount = ? WHERE AccountNumber = ?", amount, data.AccountNumber)
 				if err != nil {
-					config.Logger.Fatal(err)
+					log.Fatalf(err.Error())
 					return "", err
 				}
 				transactionLog := transactionLog{TransactionID: data.TransactionID, AccountNumber: data.AccountNumber, Amount: data.Amount, Type: data.Type}
@@ -205,7 +226,7 @@ func  work(data RequestDataBank) (string, error) {
 	return "", nil
 }
 
-func  checkRequest(data RequestDataBank) (string, error) {
+func checkRequest(data RequestDataBank) (string, error) {
 	// Search in ElasticSearch for documents with the same transaction ID and type
 
 	Type := data.Type
@@ -227,7 +248,7 @@ func  checkRequest(data RequestDataBank) (string, error) {
 	// Convert the query to JSON
 	queryJSON, err := json.Marshal(query)
 	if err != nil {
-		config.Logger.Printf("Error marshaling query: %v", err)
+		log.Printf("Error marshaling query: %v", err)
 		return "", err
 	}
 
@@ -237,7 +258,7 @@ func  checkRequest(data RequestDataBank) (string, error) {
 		config.Client.Search.WithBody(bytes.NewReader(queryJSON)),
 	)
 	if err != nil {
-		config.Logger.Printf("Error searching in ElasticSearch: %v", err)
+		log.Printf("Error searching in ElasticSearch: %v", err)
 		return "", err
 	}
 
@@ -250,10 +271,10 @@ func  checkRequest(data RequestDataBank) (string, error) {
 	}
 
 	len := len(response["hits"].(map[string]interface{})["hits"].([]interface{}))
-	config.Logger.Printf("Length of the response is %v", len)
+	log.Printf("Length of the response is %v", len)
 
 	if len > 0 {
-		config.Logger.Printf("Found existing document with the same transaction ID and type")
+		log.Printf("Found existing document with the same transaction ID and type")
 		return "Existing document found", nil
 	}
 
@@ -262,32 +283,182 @@ func  checkRequest(data RequestDataBank) (string, error) {
 
 func processDebitRequest(RequestData RequestDataBank) (string, error) {
 
-	config.Logger.Printf("Processing debit request: %v", RequestData)
+	log.Printf("Processing debit request: %v", RequestData)
 
 	// p, err := cms.NewProcess(config.LeaderPort, RequestData.AccountNumber, RequestData.Type)
 	// if err != nil {
-	// 	config.Logger.Printf("client create error: %v.\n", err.Error())
+	// 	log.Printf("client create error: %v.\n", err.Error())
 	// 	return "", err
 	// }
 	//if config.IsLeader == "TRUE" {
-		// accounts := lock_manager.GetLocksOnAvailableAccounts([]string{RequestData.AccountNumber})
-		// fmt.Println("I have locks on:%v", accounts)
-		// //perform the bank thing here
+	// accounts := lock_manager.GetLocksOnAvailableAccounts([]string{RequestData.AccountNumber})
+	// fmt.Println("I have locks on:%v", accounts)
+	// //perform the bank thing here
 
-		// if len(accounts) != 0 {
-		// 	able := lock_manager.ReleaseLocksOnAccounts(accounts)
-		// 	if !able {
-		// 		return "Error releasing locks", fmt.Errorf("Error releasing locks")
-		// 	}
-		// }
+	// if len(accounts) != 0 {
+	// 	able := lock_manager.ReleaseLocksOnAccounts(accounts)
+	// 	if !able {
+	// 		return "Error releasing locks", fmt.Errorf("Error releasing locks")
+	// 	}
+	// }
 	//} else {
-		// send request to leader
-		res, err := checkRequest(data)
-		if err != nil {
-			config.Logger.Print("Elastic Search is Down")
-			return "Elastic Search is Down", err
+	// send request to leader
+	res, err := checkRequest(RequestData)
+	if err != nil {
+		config.Logger.Print("Elastic Search is Down")
+		return "Elastic Search is Down", err
+	}
+	if res == "Existing document found" {
+		config.Logger.Print("Existing document found")
+		return "Existing document found", nil
+	}
+	url := fmt.Sprintf("http://%v:1323/get-lock", config.LeaderIPV4)
+
+	var req lock_manager.Request
+	req = lock_manager.Request{
+		RequestType: "request",
+		Accounts:    []string{RequestData.AccountNumber},
+	}
+	jsonData, err := json.Marshal(req)
+	if err != nil {
+		return "Error marshalling request", fmt.Errorf("Error marshalling request")
+	}
+	request, error := http.NewRequest("POST", url, bytes.NewBuffer(jsonData))
+	request.Header.Set("Content-Type", "application/json; charset=UTF-8")
+
+	client := &http.Client{}
+	response, error := client.Do(request)
+
+	if error != nil {
+		log.Fatalf(error.Error())
+		return "Error sending request", fmt.Errorf("Error sending request")
+	}
+	//parse response into the  array of accounts
+	var accounts []string
+	err = json.NewDecoder(response.Body).Decode(&accounts)
+	fmt.Println("%v", response.Body)
+
+	if len(accounts) != 0 {
+		msg, err := work(RequestData)
+
+		req = lock_manager.Request{
+			RequestType: "release",
+			Accounts:    []string{RequestData.AccountNumber},
 		}
-		
+		jsonData, err_ := json.Marshal(req)
+		if err_ != nil {
+			return "Error marshalling request", fmt.Errorf("Error marshalling request")
+		}
+		request, _ := http.NewRequest("POST", url, bytes.NewBuffer(jsonData))
+		request.Header.Set("Content-Type", "application/json; charset=UTF-8")
+
+		client := &http.Client{}
+		_, error_ := client.Do(request)
+		if error_ != nil {
+			log.Fatalf(error_.Error())
+			return "Error sending request", fmt.Errorf("Error sending request")
+		}
+
+		if err != nil {
+			return msg, err
+		}
+		if msg == "Insufficient balance" {
+			return msg, nil
+		}
+		if msg == "No Records Found" {
+			return msg, nil
+		}
+		return "Debit request processed", nil
+	}
+	return "Failed to get lock", nil
+	// accounts := lock_manager.GetLocksOnAvailableAccounts([]string{RequestData.AccountNumber})
+
+	// fmt.Println("%v", response.Body)
+	// if err != nil {
+	// 	fmt.Println("Error decoding response:", err)
+	// 	return "Error decoding response", fmt.Errorf("Error decoding response")
+	// }
+	// fmt.Println("I have locks on:%v", accounts)
+	//defer response.Body.Close()
+
+}
+
+// msg, err_ := p.Run(RequestData.AccountNumber, RequestData.Type, cms.RequestDataBank(RequestData))
+// if err_ != nil {
+// 	log.Printf("Debit request for transaction id %v failed with error: %v.\n", RequestData.TransactionID, err_.Error())
+// 	return "", err_
+// }
+
+// if msg != "Debit Success" {
+// 	log.Printf("Debit request for transaction id %v failed with error: %v.\n", RequestData.TransactionID, msg)
+// 	return msg, nil
+// }
+
+//return "Debit request processed", nil
+
+func addCreditRequest(data creditData) (string, error) {
+
+	log.Printf("Inside addCreditRequest")
+	if _, ok := creditLock[data.accountNumber]; !ok {
+		creditLock[data.accountNumber] = &sync.Mutex{}
+	}
+
+	if _, ok := creditMap[data.accountNumber]; !ok {
+		creditMap[data.accountNumber] = make([]creditData, 0)
+	}
+	creditLock[data.accountNumber].Lock()
+	globalLock.Lock()
+	creditMap[data.accountNumber] = append(creditMap[data.accountNumber], data)
+	globalLock.Unlock()
+	creditLock[data.accountNumber].Unlock()
+
+	return "", nil
+}
+
+func processCreditRequest(RequestData RequestDataBank) (string, error) {
+	log.Printf("Processing credit request: %v", RequestData)
+	// p, err := cms.NewProcess(config.LeaderPort, RequestData.AccountNumber, RequestData.Type)
+	// if err != nil {
+	// 	log.Printf("client create error: %v.\n", err.Error())
+	// 	return "", err
+	// }
+
+	data := creditData{transactionID: RequestData.TransactionID, accountNumber: RequestData.AccountNumber, amount: RequestData.Amount}
+	_, err := addCreditRequest(data)
+	if err != nil {
+		log.Printf("Credit request for transaction id %v failed with error: %v.\n", data.transactionID, err.Error())
+	}
+	//return "Credit Success", nil
+
+	// msg, err_ := p.Run(RequestData.AccountNumber, RequestData.Type, cms.RequestDataBank(RequestData))
+	// if err_ != nil {
+	// 	log.Printf("Credit request for transaction id %v failed with error: %v.\n", RequestData.TransactionID, err_.Error())
+	// 	return "", err_
+	// }
+
+	// if msg != "Credit Success" {
+	// 	log.Printf("Credit request for transaction id %v failed with error: %v.\n", RequestData.TransactionID, msg)
+	// 	return msg, nil
+	// }
+	return "Credit request processed", nil
+}
+
+func processReverseRequest(RequestData RequestDataBank) (string, error) {
+	log.Printf("Processing reverse request: %v", RequestData)
+	// p, err := cms.NewProcess(config.LeaderPort, RequestData.AccountNumber, RequestData.Type)
+	// if err != nil {
+	// 	log.Printf("client create error: %v.\n", err.Error())
+	// 	return "", err
+	// }
+
+	res, err := checkRequest(RequestData)
+	if err != nil {
+		config.Logger.Print("Elastic Search is Down")
+		return "Elastic Search is Down", err
+	}
+
+	if res == "Existing document found" {
+
 		url := fmt.Sprintf("http://%v:1323/get-lock", config.LeaderIPV4)
 
 		var req lock_manager.Request
@@ -306,90 +477,43 @@ func processDebitRequest(RequestData RequestDataBank) (string, error) {
 		response, error := client.Do(request)
 
 		if error != nil {
-			panic(error)
+			log.Fatalf(error.Error())
+			return "Error sending request", fmt.Errorf("Error sending request")
 		}
 		//parse response into the  array of accounts
 		var accounts []string
-		 err = json.NewDecoder(response.Body).Decode(&accounts)
+		err = json.NewDecoder(response.Body).Decode(&accounts)
 		fmt.Println("%v", response.Body)
 
 		if len(accounts) != 0 {
-			 msg,err:=  work(RequestData)
-			 if err != nil {
+			msg, err := work(RequestData)
+
+			req = lock_manager.Request{
+				RequestType: "release",
+				Accounts:    []string{RequestData.AccountNumber},
+			}
+			jsonData, err_ := json.Marshal(req)
+			if err_ != nil {
+				return "Error marshalling request", fmt.Errorf("Error marshalling request")
+			}
+			request, _ := http.NewRequest("POST", url, bytes.NewBuffer(jsonData))
+			request.Header.Set("Content-Type", "application/json; charset=UTF-8")
+
+			client := &http.Client{}
+			_, error_ := client.Do(request)
+			if error_ != nil {
+				log.Fatalf(error_.Error())
+				return "Error sending request", fmt.Errorf("Error sending request")
+			}
+			if err != nil {
 				return msg, err
-			 }
-
-			if msg == "Insufficient balance" {
+			}
+			if msg != "Transaction Reversed" {
+				log.Printf("Debit reverse for transaction id %v failed with error: %v.\n", RequestData.TransactionID, msg)
 				return msg, nil
 			}
-			if msg == "No Records Found" {
-				return msg, nil
-			}
-			return "Debit Success", nil
+			return "Transaction Reversed", nil
 		}
-
-		// fmt.Println("%v", response.Body)
-		// if err != nil {
-		// 	fmt.Println("Error decoding response:", err)
-		// 	return "Error decoding response", fmt.Errorf("Error decoding response")
-		// }
-		// fmt.Println("I have locks on:%v", accounts)
-		defer response.Body.Close()
-
-	}
-
-	// msg, err_ := p.Run(RequestData.AccountNumber, RequestData.Type, cms.RequestDataBank(RequestData))
-	// if err_ != nil {
-	// 	config.Logger.Printf("Debit request for transaction id %v failed with error: %v.\n", RequestData.TransactionID, err_.Error())
-	// 	return "", err_
-	// }
-
-	// if msg != "Debit Success" {
-	// 	config.Logger.Printf("Debit request for transaction id %v failed with error: %v.\n", RequestData.TransactionID, msg)
-	// 	return msg, nil
-	// }
-
-	return "Debit request processed", nil
-}
-
-func processCreditRequest(RequestData RequestDataBank) (string, error) {
-	config.Logger.Printf("Processing credit request: %v", RequestData)
-	p, err := cms.NewProcess(config.LeaderPort, RequestData.AccountNumber, RequestData.Type)
-	if err != nil {
-		config.Logger.Printf("client create error: %v.\n", err.Error())
-		return "", err
-	}
-
-	msg, err_ := p.Run(RequestData.AccountNumber, RequestData.Type, cms.RequestDataBank(RequestData))
-	if err_ != nil {
-		config.Logger.Printf("Credit request for transaction id %v failed with error: %v.\n", RequestData.TransactionID, err_.Error())
-		return "", err_
-	}
-
-	if msg != "Credit Success" {
-		config.Logger.Printf("Credit request for transaction id %v failed with error: %v.\n", RequestData.TransactionID, msg)
-		return msg, nil
-	}
-	return "Credit request processed", nil
-}
-
-func processReverseRequest(RequestData RequestDataBank) (string, error) {
-	config.Logger.Printf("Processing reverse request: %v", RequestData)
-	p, err := cms.NewProcess(config.LeaderPort, RequestData.AccountNumber, RequestData.Type)
-	if err != nil {
-		config.Logger.Printf("client create error: %v.\n", err.Error())
-		return "", err
-	}
-
-	msg, err_ := p.Run(RequestData.AccountNumber, RequestData.Type, cms.RequestDataBank(RequestData))
-	if err_ != nil {
-		config.Logger.Printf("Debit reverse for transaction id %v failed with error: %v.\n", RequestData.TransactionID, err_.Error())
-		return "", err_
-	}
-
-	if msg != "Transaction Reversed" {
-		config.Logger.Printf("Debit reverse for transaction id %v failed with error: %v.\n", RequestData.TransactionID, msg)
-		return msg, nil
 	}
 
 	return "Transaction Reversed", nil
@@ -397,7 +521,7 @@ func processReverseRequest(RequestData RequestDataBank) (string, error) {
 
 func processGRPCMessage(msg string) (string, error) {
 
-	config.Logger.Printf("Processing message: %v", msg)
+	log.Printf("Processing message: %v", msg)
 	var data RequestDataBank
 	err := json.Unmarshal([]byte(msg), &data)
 	if err != nil {
@@ -436,37 +560,38 @@ func processGRPCMessage(msg string) (string, error) {
 
 // SayHello implements helloworld.GreeterServer
 func (s *server) UnarryCall(ctx context.Context, in *pb.Clientmsg) (*pb.Servermsg, error) {
-	config.Logger.Printf("Received: %v", in.GetName())
+	log.Printf("Received: %v", in.GetName())
 	msg, err := processGRPCMessage(in.GetName())
 	if err != nil {
 		return &pb.Servermsg{Message: "Error processing message"}, err
 	}
 	return &pb.Servermsg{Message: msg}, nil
 }
-func initializeLearderServer() {
-	// initialize the leader server
-	clm, err := cms.NewCentLockMang(config.LeaderPort)
-	if err != nil {
-		config.Logger.Printf("Start centralized server manager(%v) error: %v.\n", config.ServerID, err.Error())
-		return
-	}
-	clms := CentLockMangStruct{clm: clm}
-	go clms.clm.Start()
-}
+
+// func initializeLearderServer() {
+// 	// initialize the leader server
+// 	clm, err := cms.NewCentLockMang(config.LeaderPort)
+// 	if err != nil {
+// 		log.Printf("Start centralized server manager(%v) error: %v.\n", config.ServerID, err.Error())
+// 		return
+// 	}
+// 	clms := CentLockMangStruct{clm: clm}
+// 	go clms.clm.Start()
+// }
 
 func main() {
 	config.LoadEnvData()
-	if config.IsLeader == "TRUE" {
-		go func() {
-			lock_manager.StartServer()
-		}()
-	}
+	// if config.IsLeader == "TRUE" {
+	// 	go func() {
+	// 		lock_manager.StartServer()
+	// 	}()
+	// }
 	// go cms.CreditProcessing(config.LeaderPort)
 	port = flag.Int("port", config.BANKSERVERPORT, "The server port")
 	flag.Parse()
 	lis, err := net.Listen("tcp", fmt.Sprintf(":%d", *port))
 	if err != nil {
-		config.Logger.Fatalf("failed to listen: %v", err)
+		log.Fatalf("failed to listen: %v", err)
 	}
 
 	// Set keepalive server parameters
@@ -491,8 +616,8 @@ func main() {
 	s := grpc.NewServer(kaOption, kepOption)
 
 	pb.RegisterDetailsServer(s, &server{})
-	config.Logger.Printf("server listening at %v", lis.Addr())
+	log.Printf("server listening at %v", lis.Addr())
 	if err := s.Serve(lis); err != nil {
-		config.Logger.Fatalf("failed to serve: %v", err)
+		log.Fatalf("failed to serve: %v", err)
 	}
 }

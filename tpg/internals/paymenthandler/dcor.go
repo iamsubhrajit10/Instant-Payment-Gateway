@@ -138,7 +138,7 @@ func getGRPCClient(address string) (pb.DetailsClient, error) {
 	if _, ok := GrpcClientMap[address]; !ok {
 		ClientConn, err := getGRPCConnection(address)
 		if err != nil {
-			config.Logger.Fatalf("did not connect: %v", err)
+			log.Fatalf("did not connect: %v", err)
 			return nil, err
 		}
 		c := pb.NewDetailsClient(ClientConn)
@@ -151,7 +151,7 @@ func getGRPCClientResolver(address string) (resolverpb.DetailsClient, error) {
 	if _, ok := GrpcClientMapRes[address]; !ok {
 		ClientConn, err := getGRPCConnectionResolver(address)
 		if err != nil {
-			config.Logger.Fatalf("did not connect: %v", err)
+			log.Fatalf("did not connect: %v", err)
 			return nil, err
 		}
 		c := resolverpb.NewDetailsClient(ClientConn)
@@ -172,10 +172,10 @@ func ReverseDebit(bankServerIPV4 string, data RequestDataBank) (string, error) {
 
 	res, err := client.UnarryCall(ctx, &pb.Clientmsg{Name: string(jsonString)})
 	if err != nil {
-		config.Logger.Fatalf("could not greet: %v", err)
+		log.Fatalf("could not greet: %v", err)
 		return "Debit Reverse failed", err
 	}
-	config.Logger.Printf("success debit reverse: %s", res.GetMessage())
+	log.Printf("success debit reverse: %s", res.GetMessage())
 	return res.GetMessage(), nil
 }
 
@@ -195,10 +195,10 @@ func DebitRequest(bankServerIPV4 string, data RequestDataBank) (string, error) {
 
 	res, err := client.UnarryCall(ctx, &pb.Clientmsg{Name: string(jsonString)})
 	if err != nil {
-		config.Logger.Fatalf("could not greet: %v", err)
+		log.Fatalf("could not greet: %v", err)
 		return "Debit Request failed", err
 	}
-	config.Logger.Printf("success debit: %s", res.GetMessage())
+	log.Printf("success debit: %s", res.GetMessage())
 	return res.GetMessage(), nil
 }
 
@@ -249,10 +249,10 @@ func CreditRequest(bankServerIPV4 string, data RequestDataBank) (string, error) 
 
 	r, err := client.UnarryCall(ctx, &pb.Clientmsg{Name: string(jsonString)})
 	if err != nil {
-		config.Logger.Fatalf("could not greet: %v", err)
+		log.Fatalf("could not greet: %v", err)
 		return "", err
 	}
-	config.Logger.Printf("Greeting: %s", r.GetMessage())
+	log.Printf("Greeting: %s", r.GetMessage())
 	return "Success", nil
 }
 
@@ -284,12 +284,12 @@ func dumpTranscation(tid string, payerAddress string, payeeAddress string, Type 
 	// 	log.Print("hello1")
 	// 	_, err := os.Create("Failed_Transaction.csv")
 	// 	if err != nil {
-	// 		config.Logger.Fatal(err)
+	// 		log.Fatalf(err)
 	// 	}
 	// }
 	file, err := os.OpenFile("Failed_Transaction.csv", os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
 	if err != nil {
-		config.Logger.Fatal(err)
+		log.Fatalf("%s", err)
 	}
 	defer file.Close()
 	//file, err := os.Open("Failed_Transaction.csv")
@@ -298,7 +298,7 @@ func dumpTranscation(tid string, payerAddress string, payeeAddress string, Type 
 	defer writer.Flush()
 
 	if err := writer.Write(data); err != nil {
-		config.Logger.Fatal(err)
+		log.Fatalf(err.Error())
 	}
 }
 
@@ -361,8 +361,8 @@ func TransferHandler(c echo.Context) error {
 
 	// check if the account number is found for both
 	if replyResolverPayer.Status == "found" && replyResolverPayee.Status == "found" {
-		config.Logger.Printf("Payer: %s", replyResolverPayer.AccountNumber)
-		config.Logger.Printf("Payee: %s", replyResolverPayee.AccountNumber)
+		log.Printf("Payer: %s", replyResolverPayer.AccountNumber)
+		log.Printf("Payee: %s", replyResolverPayee.AccountNumber)
 		debitData := RequestDataBank{
 			TransactionID: replyResolverPayer.TransactionID,
 			AccountNumber: replyResolverPayer.AccountNumber,
@@ -405,7 +405,7 @@ func TransferHandler(c echo.Context) error {
 			}
 			return c.String(http.StatusOK, "Transfer Successful")
 		}
-		config.Logger.Printf("Debit: %s", x)
+		log.Printf("Debit: %s", x)
 		_, err_ := CreditRequest(creditBankServerIPV4, creditData)
 		if err_ != nil {
 

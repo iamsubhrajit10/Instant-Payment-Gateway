@@ -8,6 +8,7 @@ import (
 
 	//"os"
 
+	"log"
 	"tpg/config"
 	"tpg/internals/router"
 	"tpg/scheduler"
@@ -19,7 +20,7 @@ import (
 func main() {
 	s, err := gocron.NewScheduler()
 	if err != nil {
-		config.Logger.Fatal("error: unable to create new scheduler")
+		log.Fatalf("error: unable to create new scheduler")
 	}
 
 	//port := "8081"
@@ -36,9 +37,9 @@ func main() {
 	)
 
 	if err != nil {
-		config.Logger.Fatal("error: unable to populate scheduler with reverse job")
+		log.Fatalf("error: unable to populate scheduler with reverse job")
 	}
-	//config.Logger.Println(j.ID())
+	//log.Println(j.ID())
 	fmt.Println(j.ID())
 
 	s.Start()
@@ -47,7 +48,7 @@ func main() {
 	e := router.SetupRouter()
 	err_env := config.LoadEnvData()
 	if err_env != nil {
-		config.Logger.Fatalf("Error loading .env file")
+		log.Fatalf("Error loading .env file")
 	}
 	e.Logger.Fatal(e.Start(":8081"))
 }

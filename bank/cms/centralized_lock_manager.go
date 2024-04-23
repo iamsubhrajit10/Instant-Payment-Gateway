@@ -6,6 +6,7 @@ import (
 	msgp "bank/cms/msg"
 	netq "bank/cms/netq"
 	"bank/config"
+	"log"
 
 	//"container/list"
 	"encoding/json"
@@ -43,11 +44,11 @@ func NewCentLockMang(port int) (*CentLockMang, error) {
 	}
 	srv, err := netq.NewServer(clm.port)
 	if err != nil {
-		config.Logger.Printf("centLockMang create error: %v.\n", err.Error())
+		log.Printf("centLockMang create error: %v.\n", err.Error())
 		return nil, err
 	}
 	clm.srv = srv
-	config.Logger.Printf("centLockMang create successfully.\n")
+	log.Printf("centLockMang create successfully.\n")
 	return clm, nil
 }
 
@@ -55,9 +56,9 @@ func (clm *CentLockMang) Start() error {
 	go clm.handleLockMsg()
 	for {
 		connID, readBytes, err := clm.srv.ReadData()
-		config.Logger.Printf("centLockManlllg receive message(%v) from process(%v).\n", string(readBytes), connID)
+		log.Printf("centLockManlllg receive message(%v) from process(%v).\n", string(readBytes), connID)
 		if err != nil {
-			config.Logger.Printf("centLockMang receive message error: %v.\n", err.Error())
+			log.Printf("centLockMang receive message error: %v.\n", err.Error())
 			// continue
 			return err
 		}
@@ -137,13 +138,13 @@ func (clm *CentLockMang) sendMsg(connID int, content msgp.Message) error {
 	// write
 	lg := msgp.NewGrant(content.AccountNumbers, content.Type, "Grant")
 	lgBytes, _ := json.Marshal(lg)
-	//config.Logger.Printf("centLockMang send message to %v.\n", content.AccountNumbers)
+	//log.Printf("centLockMang send message to %v.\n", content.AccountNumbers)
 	if err := clm.srv.WriteData(connID, lgBytes); err != nil {
-		//	config.Logger.Printf("centLockMang send message to process(%v) error: %v.\n", content.AccountNumber, err.Error())
+		//	log.Printf("centLockMang send message to process(%v) error: %v.\n", content.AccountNumber, err.Error())
 		return err
 	}
 
-	//config.Logger.Printf("centLockMang send message to process(%v) successfully.\n", content.AccountNumber)
+	//log.Printf("centLockMang send message to process(%v) successfully.\n", content.AccountNumber)
 	return nil
 }
 

@@ -2,9 +2,9 @@ package scheduler
 
 import (
 	"encoding/csv"
+	"log"
 	"os"
 	"strconv"
-	"tpg/config"
 	ph "tpg/internals/paymenthandler"
 )
 
@@ -13,7 +13,7 @@ func reverseTransaction(transaction []string) {
 	if transaction[3] == "debit" {
 		amount, err := strconv.Atoi(transaction[4])
 		if err != nil {
-			config.Logger.Fatal(err)
+			log.Fatalf(err.Error())
 		}
 		data := ph.RequestDataBank{TransactionID: transaction[0], AccountNumber: transaction[5], Amount: amount, Type: "reverse"}
 		msg, err := ph.ReverseDebit(transaction[1], data)
@@ -22,7 +22,7 @@ func reverseTransaction(transaction []string) {
 
 			file, err := os.OpenFile("Failed_Transaction.csv", os.O_APPEND|os.O_WRONLY, 0644)
 			if err != nil {
-				config.Logger.Fatal(err)
+				log.Fatalf(err.Error())
 			}
 			defer file.Close()
 
@@ -30,7 +30,7 @@ func reverseTransaction(transaction []string) {
 			writer := csv.NewWriter(file)
 			defer writer.Flush()
 			if err := writer.Write(transaction); err != nil {
-				config.Logger.Fatal(err)
+				log.Fatalf(err.Error())
 			}
 		}
 	}
@@ -40,7 +40,7 @@ func Reverse() interface{} {
 
 	file, err := os.Open("Failed_Transaction.csv")
 	if err != nil {
-		config.Logger.Fatal(err)
+		log.Fatalf(err.Error())
 	}
 	defer file.Close()
 	// Create a CSV reader.
@@ -48,14 +48,14 @@ func Reverse() interface{} {
 	// Read all data from the CSV file.
 	data, err := reader.ReadAll()
 	if err != nil {
-		config.Logger.Fatal(err)
+		log.Fatalf(err.Error())
 	}
 	if err := os.Truncate("Failed_Transaction.csv", 0); err != nil {
-		config.Logger.Printf("Failed to truncate: %v", err)
+		log.Printf("Failed to truncate: %v", err)
 	}
 	// Print the data.
 	for _, row := range data {
-		config.Logger.Printf("Transaction ID: %v, Account Number: %v, Amount: %v, Type: %v\n", row[0], row[5], row[2], row[3])
+		log.Printf("Transaction ID: %v, Account Number: %v, Amount: %v, Type: %v\n", row[0], row[5], row[2], row[3])
 		// Reverse the transaction.
 		reverseTransaction(row)
 	}

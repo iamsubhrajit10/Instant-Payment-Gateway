@@ -134,7 +134,7 @@ func (s *server) UnarryCall(ctx context.Context, in *pb.Clientmsg) (*pb.Serverms
 			errorChan <- err
 			return
 		}
-		config.Logger.Printf("Sending: %v", msg)
+		log.Printf("Sending: %v", msg)
 		resultChan <- &pb.Servermsg{Message: msg}
 	}(in.GetName())
 
@@ -153,13 +153,13 @@ func main() {
 	var err error
 	db, err = sql.Open("sqlite3", config.DB_PATH)
 	if err != nil {
-		config.Logger.Fatalf("Error opening database: %v", err)
+		log.Fatalf("Error opening database: %v", err)
 	}
 	port = flag.Int("port", config.RESOLVER_SERVER_PORT, "The resovler server port")
 	flag.Parse()
 	lis, err := net.Listen("tcp", fmt.Sprintf(":%d", *port))
 	if err != nil {
-		config.Logger.Fatalf("failed to listen: %v", err)
+		log.Fatalf("failed to listen: %v", err)
 	}
 	// Set keepalive server parameters
 	ka := keepalive.ServerParameters{
@@ -183,9 +183,9 @@ func main() {
 	s := grpc.NewServer(kaOption, kepOption)
 
 	pb.RegisterDetailsServer(s, &server{})
-	config.Logger.Printf("server listening at %v", lis.Addr())
-	config.Logger.Printf("server going to listen at %v", *port)
+	log.Printf("server listening at %v", lis.Addr())
+	log.Printf("server going to listen at %v", *port)
 	if err := s.Serve(lis); err != nil {
-		config.Logger.Fatalf("failed to serve: %v", err)
+		log.Fatalf("failed to serve: %v", err)
 	}
 }

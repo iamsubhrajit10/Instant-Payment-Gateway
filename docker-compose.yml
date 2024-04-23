@@ -60,15 +60,19 @@ services:
     image: resolver
     networks:
       - mynetwork
-  bank_leader:
-    image: leader_bank1
-    networks:
-      - mynetwork
+  # bank_leader:
+  #   image: leader_bank1
+  #   networks:
+  #     - mynetwork
   bank1:
     image: bank1
     networks:
       - mynetwork
   bank2:
+    image: bank1
+    networks:
+      - mynetwork
+  bank3:
     image: bank1
     networks:
       - mynetwork
