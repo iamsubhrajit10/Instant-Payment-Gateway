@@ -76,7 +76,10 @@ services:
     image: lb_bank1
     networks:
       - mynetwork
- 
+  lock_manager:
+    image: lock_manager
+    networks:
+      - mynetwork
   
   
   

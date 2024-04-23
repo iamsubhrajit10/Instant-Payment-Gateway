@@ -77,6 +77,189 @@ func generateProcessId() string {
 	return fmt.Sprintf("%06d", rand.Intn(1000000))
 }
 
+func  work(data RequestDataBank) (string, error) {
+	db1 := config.DB
+	db2 := config.DB2
+	db3 := config.DB3
+	db := db1
+
+	acc, err := strconv.Atoi(data.AccountNumber)
+	if err != nil {
+		config.Logger.Printf("Error converting account number to integer: %v", err)
+		return "", err
+	}
+	remains := acc % 3
+	switch remains {
+	case 0:
+		db = db1
+	case 1:
+		db = db2
+	case 2:
+		db = db3
+	}
+
+	switch data.Type {
+	case "debit":
+		{
+			config.Logger.Printf("Processing debit  request with DB operation: %v", data.AccountNumber)
+			err_ := db.Ping()
+			if err_ != nil {
+				config.Logger.Printf("Error connecting to the database: %v", err_)
+				msg, err := config.ConnectWithSql()
+				if err != nil {
+					return msg, err
+				}
+			}
+			results, err := db.Query("SELECT Amount FROM bank_details WHERE AccountNumber = ?", data.AccountNumber)
+			if err != nil {
+				config.Logger.Fatal(err)
+				return "", err
+			}
+			for results.Next() {
+				var amount int
+				// for each row, scan the result into our tag composite object
+				err = results.Scan(&amount)
+				if err != nil {
+					config.Logger.Fatal(err)
+					return "", err
+				}
+				if amount < data.Amount {
+					config.Logger.Printf("Insufficient balance")
+					return "Insufficient balance", nil
+				} else {
+					amount = amount - data.Amount
+					_, err := db.Exec("UPDATE bank_details SET Amount = ? WHERE AccountNumber = ?", amount, data.AccountNumber)
+					if err != nil {
+						config.Logger.Fatal(err)
+						return "", err
+					}
+					transactionLog := transactionLog{TransactionID: data.TransactionID, AccountNumber: data.AccountNumber, Amount: data.Amount, Type: data.Type}
+					transactionString, _ := json.Marshal(transactionLog)
+					config.Client.Index(config.IndexName, bytes.NewReader(transactionString))
+					return "", nil
+				}
+			}
+
+			return "No Records Found", nil
+		}
+	case "reverse":
+		{
+			config.Logger.Printf("Processing debit reversal with DB operation: %v", data.AccountNumber)
+			db1 := config.DB
+			db2 := config.DB2
+			db3 := config.DB3
+			db := db1
+
+			acc, err := strconv.Atoi(data.AccountNumber)
+			if err != nil {
+				config.Logger.Printf("Error converting account number to integer: %v", err)
+				return "", err
+			}
+			remains := acc % 3
+			switch remains {
+			case 0:
+				db = db1
+			case 1:
+				db = db2
+			case 2:
+				db = db3
+			}
+			err_ := db.Ping()
+			if err_ != nil {
+				config.Logger.Printf("Error connecting to the database: %v", err_)
+				msg, err := config.ConnectWithSql()
+				if err != nil {
+					return msg, err
+				}
+			}
+			results, err := db.Query("SELECT Amount FROM bank_details WHERE AccountNumber = ?", data.AccountNumber)
+			if err != nil {
+				config.Logger.Fatal(err)
+				return "", err
+			}
+			for results.Next() {
+				var amount int
+				// for each row, scan the result into our tag composite object
+				err = results.Scan(&amount)
+				if err != nil {
+					config.Logger.Fatal(err)
+					return "", err
+				}
+				amount = amount + data.Amount
+				_, err := db.Exec("UPDATE bank_details SET Amount = ? WHERE AccountNumber = ?", amount, data.AccountNumber)
+				if err != nil {
+					config.Logger.Fatal(err)
+					return "", err
+				}
+				transactionLog := transactionLog{TransactionID: data.TransactionID, AccountNumber: data.AccountNumber, Amount: data.Amount, Type: data.Type}
+				transactionString, _ := json.Marshal(transactionLog)
+				config.Client.Index(config.IndexName, bytes.NewReader(transactionString))
+				return "Transaction Reversed", nil
+
+			}
+
+			return "No Records Found", nil
+		}
+
+	}
+	return "", nil
+}
+
+func  checkRequest(data RequestDataBank) (string, error) {
+	// Search in ElasticSearch for documents with the same transaction ID and type
+
+	Type := data.Type
+	if data.Type == "reverse" {
+		Type = "debit"
+	}
+
+	query := map[string]interface{}{
+		"query": map[string]interface{}{
+			"bool": map[string]interface{}{
+				"must": []interface{}{
+					map[string]interface{}{"term": map[string]interface{}{"TransactionID": data.TransactionID}},
+					map[string]interface{}{"term": map[string]interface{}{"Type": Type}},
+				},
+			},
+		},
+	}
+
+	// Convert the query to JSON
+	queryJSON, err := json.Marshal(query)
+	if err != nil {
+		config.Logger.Printf("Error marshaling query: %v", err)
+		return "", err
+	}
+
+	// Search in ElasticSearch
+	res, err := config.Client.Search(
+		config.Client.Search.WithIndex(config.IndexName),
+		config.Client.Search.WithBody(bytes.NewReader(queryJSON)),
+	)
+	if err != nil {
+		config.Logger.Printf("Error searching in ElasticSearch: %v", err)
+		return "", err
+	}
+
+	// Check if any documents were found
+	response := map[string]interface{}{}
+	err_ := json.NewDecoder(res.Body).Decode(&response)
+	if err_ != nil {
+		config.Logger.Print("Error Decoding the response")
+		return "", err_
+	}
+
+	len := len(response["hits"].(map[string]interface{})["hits"].([]interface{}))
+	config.Logger.Printf("Length of the response is %v", len)
+
+	if len > 0 {
+		config.Logger.Printf("Found existing document with the same transaction ID and type")
+		return "Existing document found", nil
+	}
+
+	return "", nil
+}
+
 func processDebitRequest(RequestData RequestDataBank) (string, error) {
 
 	config.Logger.Printf("Processing debit request: %v", RequestData)
@@ -86,19 +269,25 @@ func processDebitRequest(RequestData RequestDataBank) (string, error) {
 	// 	config.Logger.Printf("client create error: %v.\n", err.Error())
 	// 	return "", err
 	// }
-	if config.IsLeader == "TRUE" {
-		accounts := lock_manager.GetLocksOnAvailableAccounts([]string{RequestData.AccountNumber})
-		fmt.Println("I have locks on:%v", accounts)
-		//perform the bank thing here
+	//if config.IsLeader == "TRUE" {
+		// accounts := lock_manager.GetLocksOnAvailableAccounts([]string{RequestData.AccountNumber})
+		// fmt.Println("I have locks on:%v", accounts)
+		// //perform the bank thing here
 
-		if len(accounts) != 0 {
-			able := lock_manager.ReleaseLocksOnAccounts(accounts)
-			if !able {
-				return "Error releasing locks", fmt.Errorf("Error releasing locks")
-			}
-		}
-	} else {
+		// if len(accounts) != 0 {
+		// 	able := lock_manager.ReleaseLocksOnAccounts(accounts)
+		// 	if !able {
+		// 		return "Error releasing locks", fmt.Errorf("Error releasing locks")
+		// 	}
+		// }
+	//} else {
 		// send request to leader
+		res, err := checkRequest(data)
+		if err != nil {
+			config.Logger.Print("Elastic Search is Down")
+			return "Elastic Search is Down", err
+		}
+		
 		url := fmt.Sprintf("http://%v:1323/get-lock", config.LeaderIPV4)
 
 		var req lock_manager.Request
@@ -121,12 +310,30 @@ func processDebitRequest(RequestData RequestDataBank) (string, error) {
 		}
 		//parse response into the  array of accounts
 		var accounts []string
-		err = json.NewDecoder(response.Body).Decode(&accounts)
-		if err != nil {
-			fmt.Println("Error decoding response:", err)
-			return "Error decoding response", fmt.Errorf("Error decoding response")
+		 err = json.NewDecoder(response.Body).Decode(&accounts)
+		fmt.Println("%v", response.Body)
+
+		if len(accounts) != 0 {
+			 msg,err:=  work(RequestData)
+			 if err != nil {
+				return msg, err
+			 }
+
+			if msg == "Insufficient balance" {
+				return msg, nil
+			}
+			if msg == "No Records Found" {
+				return msg, nil
+			}
+			return "Debit Success", nil
 		}
-		fmt.Println("I have locks on:%v", accounts)
+
+		// fmt.Println("%v", response.Body)
+		// if err != nil {
+		// 	fmt.Println("Error decoding response:", err)
+		// 	return "Error decoding response", fmt.Errorf("Error decoding response")
+		// }
+		// fmt.Println("I have locks on:%v", accounts)
 		defer response.Body.Close()
 
 	}
@@ -283,7 +490,7 @@ func main() {
 	// Create the gRPC server with the keepalive options
 	s := grpc.NewServer(kaOption, kepOption)
 
-	pb.RegisterDetawilsServer(s, &server{})
+	pb.RegisterDetailsServer(s, &server{})
 	config.Logger.Printf("server listening at %v", lis.Addr())
 	if err := s.Serve(lis); err != nil {
 		config.Logger.Fatalf("failed to serve: %v", err)

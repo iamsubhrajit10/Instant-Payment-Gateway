@@ -2,7 +2,7 @@
 
 url="http://10.240.2.146:8088/transfer"  # Replace with your server URL
 total_requests=1000 # Total number of requests
-duration=20 # Duration in seconds
+duration=10 # Duration in seconds
 threads=4  # Number of threads
 
 # Generate a Lua script for wrk
