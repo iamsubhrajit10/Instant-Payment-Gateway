@@ -3,6 +3,7 @@ package netq
 import (
 	"bank/config"
 	"fmt"
+	"log"
 	"net"
 	"sync/atomic"
 )
@@ -20,6 +21,7 @@ func NewClient(port int) (Client, error) {
 		hostport:    fmt.Sprintf(":%d", port),
 	}
 	if err := c.start(); err != nil {
+		log.Print("Client start error: ", err.Error())
 		return nil, err
 	}
 	return c, nil
@@ -29,10 +31,14 @@ func (c *client) start() error {
 	address := config.LeaderIPV4 + c.hostport
 	addr, err := net.ResolveTCPAddr("tcp", address)
 	if err != nil {
+		log.Print("ResolveTCPAddr error: ", err.Error())
 		return err
 	}
+	// net.Dial()
 	conn, err := net.DialTCP("tcp", nil, addr)
+
 	if err != nil {
+		log.Print("DialTCP error: ", err.Error())
 		return err
 	}
 	c.conn = conn

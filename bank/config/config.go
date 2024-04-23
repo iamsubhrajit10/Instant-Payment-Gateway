@@ -21,13 +21,13 @@ var BANKSERVERPORT int
 var LeaderIPV4 string
 var LeaderPort int
 var IsLeader string
-var MySQLIPV4 string
+var MySQLIPV41 string
+var MySQLIPV42 string
+var MySQLIPV43 string
 var ServerID int
 var LEADERLISTENIPV4 string
 var ElasticSearchIPV4 string
-var DBPORT1 string
-var DBPORT2 string
-var DBPORT3 string
+var DBPORT string
 var Client *elasticsearch.Client
 var DB *sql.DB
 var DB2 *sql.DB
@@ -63,28 +63,31 @@ func CreateLog(fileName, header string) *log.Logger {
 
 func ConnectWithSql() (string, error) {
 
-	DB, err1 = sql.Open("mysql", fmt.Sprintf("root:root@tcp(%s:%s)/upi", MySQLIPV4, DBPORT1))
-	DB2, err2 = sql.Open("mysql", fmt.Sprintf("root:root@tcp(%s:%s)/upi", MySQLIPV4, DBPORT1))
-	DB3, err3 = sql.Open("mysql", fmt.Sprintf("root:root@tcp(%s:%s)/upi", MySQLIPV4, DBPORT1))
+	log.Print("Connecting to MySQL database...")
+	DB, err1 = sql.Open("mysql", fmt.Sprintf("root:root@tcp(%s:%s)/upi", MySQLIPV41, DBPORT))
+	DB2, err2 = sql.Open("mysql", fmt.Sprintf("root:root@tcp(%s:%s)/upi", MySQLIPV42, DBPORT))
+	DB3, err3 = sql.Open("mysql", fmt.Sprintf("root:root@tcp(%s:%s)/upi", MySQLIPV43, DBPORT))
 	if err1 != nil || err2 != nil || err3 != nil {
 		Logger.Fatal(err)
 		return "", err
 	}
+
+	log.Print("After connecting to MySQL database...")
 
 	err1, err2, err3 = DB.Ping(), DB2.Ping(), DB3.Ping()
 	if err1 != nil || err2 != nil || err3 != nil {
-		Logger.Fatal(err)
+		log.Fatal(err1)
+		log.Fatal(err2)
+		log.Fatal(err3)
 		return "", err
 	}
-
-	Logger.Println("Successfully connected to MySQL database")
+	log.Println("Successfully connected to MySQL database")
 	return "Success", nil
 }
 
 func CreateElasticSearchClient() error {
 	// Create a new Elasticsearch client and connect to http://
 	//	Client, err = elasticsearch.NewDefaultClient()
-
 	cfg := elasticsearch.Config{
 		Addresses: []string{
 			// "http://10.240.1.252:9200",
@@ -121,16 +124,20 @@ func LoadEnvData() error {
 	LeaderIPV4 = os.Getenv("LEADERIPV4")
 	LeaderPort, _ = strconv.Atoi(os.Getenv("LEADERPORT"))
 	IsLeader = os.Getenv("ISLEADER")
-	MySQLIPV4 = os.Getenv("MYSQLIPV4")
+	MySQLIPV41 = os.Getenv("MYSQLIPV41")
+	MySQLIPV42 = os.Getenv("MYSQLIPV42")
+	MySQLIPV43 = os.Getenv("MYSQLIPV43")
+
 	IndexName = os.Getenv("INDEXNAME")
 	LEADERLISTENIPV4 = os.Getenv("LEADERLISTENIPV4")
 	ElasticSearchIPV4 = os.Getenv("ELASTICSEARCHIPV4")
-	DBPORT1 = os.Getenv("DBPORT1")
-	DBPORT2 = os.Getenv("DBPORT2")
-	DBPORT3 = os.Getenv("DBPORT3")
+	DBPORT = os.Getenv("DBPORT")
 
 	ServerID, _ = strconv.Atoi(generateRandomID())
 	Logger.Printf("BANKSERVERPORT: %v", BANKSERVERPORT)
+
+	log.Printf("BANKSERVERPORT: %v", BANKSERVERPORT)
+	time.Sleep(10 * time.Second)
 	msg, _ := ConnectWithSql()
 	Logger.Printf("IndexName: %v", IndexName)
 	err = CreateElasticSearchClient()

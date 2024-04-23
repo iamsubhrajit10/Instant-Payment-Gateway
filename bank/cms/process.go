@@ -178,47 +178,54 @@ func CreditProcessing(port int) {
 			case 2:
 				db = config.DB3
 			}
-			for index, data := range creditMap[accountNumber] {
+			sum := 0
+			//transactionLogs := make([]transactionLog, 0)
+			for _, data := range creditMap[accountNumber] {
+				sum = sum + data.amount
+				// transactionLog := transactionLog{TransactionID: data.transactionID, AccountNumber: data.accountNumber, Amount: data.amount, Type: "credit"}
+				// transactionLogs = append(transactionLogs, transactionLog)
+			}
 
-				//config.Logger.Printf("Processing credit request: %v", data.AccountNumber)
-				// handle error
-				results, err := db.Query("SELECT Amount FROM bank_details WHERE AccountNumber = ?", data.accountNumber)
+			results, err := db.Query("SELECT Amount FROM bank_details WHERE AccountNumber = ?", accountNumber)
+			if err != nil {
+				config.Logger.Fatal(err)
+				Failed_Transaction = creditMap[accountNumber]
+				continue
+			}
+
+			for results.Next() {
+				var amount int
+				err = results.Scan(&amount)
 				if err != nil {
 					config.Logger.Fatal(err)
-					Failed_Transaction = append(Failed_Transaction, data)
+					Failed_Transaction = creditMap[accountNumber]
 					continue
 				}
-				for results.Next() {
-					var amount int
-					err = results.Scan(&amount)
-					if err != nil {
-						config.Logger.Fatal(err)
-						Failed_Transaction = append(Failed_Transaction, data)
-						continue
-						// proper error handling instead of panic in your app
-						//return "", err
-					}
-					amount = amount + data.amount
-					_, err := db.Exec("UPDATE bank_details SET Amount = ? WHERE AccountNumber = ?", amount, data.accountNumber)
-					if err != nil {
-						config.Logger.Fatal(err)
-						Failed_Transaction = append(Failed_Transaction, data)
-						continue
-					}
-					creditMap[accountNumber] = append(creditMap[accountNumber][:index], creditMap[accountNumber][index+1:]...)
-					transactionLog := transactionLog{TransactionID: data.transactionID, AccountNumber: data.accountNumber, Amount: data.amount, Type: "credit"}
-					transactionString, _ := json.Marshal(transactionLog)
-					config.Client.Index(config.IndexName, bytes.NewReader(transactionString))
-					//return "", nil
+				amount = amount + sum
+				_, err := db.Exec("UPDATE bank_details SET Amount = ? WHERE AccountNumber = ?", amount, accountNumber)
+				if err != nil {
+					config.Logger.Fatal(err)
+					Failed_Transaction = creditMap[accountNumber]
+					continue
 				}
-				//return "No Records Found", nil
+				//creditMap[accountNumber] = append(creditMap[accountNumber][:index], creditMap[accountNumber][index+1:]...)
+
+				//return "", nil
 			}
+
+			for _, data := range creditMap[accountNumber] {
+				//sum=sum+data.amount
+				transactionLog := transactionLog{TransactionID: data.transactionID, AccountNumber: data.accountNumber, Amount: data.amount, Type: "credit"}
+				transactionString, _ := json.Marshal(transactionLog)
+				config.Client.Index(config.IndexName, bytes.NewReader(transactionString))
+				//transactionLogs = append(transactionLogs, transactionLog)
+			}
+
 			if len(Failed_Transaction) == 0 {
 				delete(creditMap, accountNumber)
 			} else {
 				creditMap[accountNumber] = Failed_Transaction
 			}
-
 			creditLock[accountNumber].Unlock()
 		}
 
