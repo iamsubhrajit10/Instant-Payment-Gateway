@@ -238,13 +238,7 @@ func CreditRequest(bankServerIPV4 string, data RequestDataBank) (string, error) 
 	if err != nil {
 		return "GRPC client not found, credit failed", err
 	}
-	// defer ClientConn.Close()
-	// c := pb.NewDetailsClient(ClientConn)
 	ctx := context.Background()
-	// if err := creditLimiter.Wait(ctx); err != nil {
-	// 	return "Rate limit exceeded", err
-	// }
-
 	jsonString, err := json.Marshal(data)
 
 	r, err := client.UnarryCall(ctx, &pb.Clientmsg{Name: string(jsonString)})
@@ -278,22 +272,11 @@ func creditRetry(addr string, data RequestDataBank) (string, error) {
 
 func dumpTranscation(tid string, payerAddress string, payeeAddress string, Type string, amount int, payeeAno string, payeeName string, payeeIfsc string, payerAno string, payerName string, payerIfsc string) {
 	data := []string{tid, payerAddress, payeeAddress, Type, strconv.Itoa(amount), payerAno, payerIfsc, payerName, payeeAno, payeeIfsc, payeeName}
-
-	//_, err := os.Stat("Failed_Transaction.csv")
-	// if os.IsNotExist((err)) {
-	// 	log.Print("hello1")
-	// 	_, err := os.Create("Failed_Transaction.csv")
-	// 	if err != nil {
-	// 		log.Fatalf(err)
-	// 	}
-	// }
 	file, err := os.OpenFile("Failed_Transaction.csv", os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
 	if err != nil {
 		log.Fatalf("%s", err)
 	}
 	defer file.Close()
-	//file, err := os.Open("Failed_Transaction.csv")
-	//defer file.Close()
 	writer := csv.NewWriter(file)
 	defer writer.Flush()
 
@@ -310,10 +293,6 @@ func generateTransactionID() string {
 
 func TransferHandler(c echo.Context) error {
 	// Get the resolver server address
-
-	// RequestCount++
-	// DebitPort := config.DebitBankServerPort + RequestCount%3
-	// CreditPort := config.CreditBankServerPort + RequestCount%3
 
 	resolverServerIPV4 := config.ResolverServerIPV4 + ":" + config.ResolverServerPort
 	// Get the bank server address

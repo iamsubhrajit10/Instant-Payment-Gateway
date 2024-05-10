@@ -19,17 +19,16 @@ import (
 
 var BANKSERVERPORT int
 var LeaderIPV4 string
-var LeaderPort int
-var IsLeader string
 var MySQLIPV41 string
 var MySQLIPV42 string
+var LeaderPort int
 var MySQLIPV43 string
 var ServerID int
 var LEADERLISTENIPV4 string
 var ElasticSearchIPV4 string
 var DBPORT string
 var Client *elasticsearch.Client
-var DB *sql.DB
+var DB1 *sql.DB
 var DB2 *sql.DB
 var DB3 *sql.DB
 var msg string
@@ -64,7 +63,7 @@ func CreateLog(fileName, header string) *log.Logger {
 func ConnectWithSql() (string, error) {
 
 	log.Print("Connecting to MySQL database...")
-	DB, err1 = sql.Open("mysql", fmt.Sprintf("root:root@tcp(%s:%s)/upi", MySQLIPV41, DBPORT))
+	DB1, err1 = sql.Open("mysql", fmt.Sprintf("root:root@tcp(%s:%s)/upi", MySQLIPV41, DBPORT))
 	DB2, err2 = sql.Open("mysql", fmt.Sprintf("root:root@tcp(%s:%s)/upi", MySQLIPV42, DBPORT))
 	DB3, err3 = sql.Open("mysql", fmt.Sprintf("root:root@tcp(%s:%s)/upi", MySQLIPV43, DBPORT))
 	if err1 != nil || err2 != nil || err3 != nil {
@@ -74,7 +73,7 @@ func ConnectWithSql() (string, error) {
 
 	log.Print("After connecting to MySQL database...")
 
-	err1, err2, err3 = DB.Ping(), DB2.Ping(), DB3.Ping()
+	err1, err2, err3 = DB1.Ping(), DB2.Ping(), DB3.Ping()
 	if err1 != nil || err2 != nil || err3 != nil {
 		log.Fatal(err1)
 		log.Fatal(err2)
@@ -122,12 +121,10 @@ func LoadEnvData() error {
 	// Get the environment variables
 	BANKSERVERPORT, _ = strconv.Atoi(os.Getenv("BANKSERVERPORT"))
 	LeaderIPV4 = os.Getenv("LEADERIPV4")
-	LeaderPort, _ = strconv.Atoi(os.Getenv("LEADERPORT"))
-	IsLeader = os.Getenv("ISLEADER")
 	MySQLIPV41 = os.Getenv("MYSQLIPV41")
 	MySQLIPV42 = os.Getenv("MYSQLIPV42")
 	MySQLIPV43 = os.Getenv("MYSQLIPV43")
-
+	LeaderPort, _ = strconv.Atoi(os.Getenv("LEADERPORT"))
 	IndexName = os.Getenv("INDEXNAME")
 	LEADERLISTENIPV4 = os.Getenv("LEADERLISTENIPV4")
 	ElasticSearchIPV4 = os.Getenv("ELASTICSEARCHIPV4")
