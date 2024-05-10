@@ -1,94 +1,15 @@
-// package main
-
-// import (
-// 	"log"
-// 	"net/http"
-// 	"sync"
-
-// 	"github.com/labstack/echo/v4"
-// )
-
-// type Request struct {
-// 	RequestType string   `json:"requestType"`
-// 	Accounts    []string `json:"accounts"`
-// }
-
-// var LockStats = make(map[string]bool)
-
-// func GetLocksOnAvailableAccounts(accounts []string) []string {
-// 	mu := sync.Mutex{}
-// 	log.Printf("hello 3")
-// 	mu.Lock()
-
-// 	var availableAccounts []string
-// 	log.Printf("accounts: %v", accounts)
-// 	for _, account := range accounts {
-// 		log.Printf("account1: %v", account)
-// 		if contains(LockStats, account) {
-// 			if LockStats[account] == false {
-// 				log.Printf("account2: %v", account)
-// 				availableAccounts = append(availableAccounts, account)
-// 				LockStats[account] = true
-// 			}
-// 		} else {
-// 			LockStats[account] = true
-// 			log.Printf("account3: %v", account)
-// 			availableAccounts = append(availableAccounts, account)
-// 		}
-// 	}
-
-// 	mu.Unlock()
-// 	return availableAccounts
-
-// }
-
-// func contains(s map[string]bool, account string) bool {
-// 	_, ok := s[account]
-// 	return ok
-// }
-
-// func ReleaseLocksOnAccounts(accounts []string) bool {
-// 	mu := sync.Mutex{}
-// 	mu.Lock()
-// 	for _, account := range accounts {
-// 		LockStats[account] = false
-// 	}
-// 	mu.Unlock()
-// 	return true
-
-// }
-
-// func main() {
-
-// 	e := echo.New()
-// 	e.POST("/get-lock", func(c echo.Context) error {
-// 		log.Printf("hello 1")
-// 		var req Request
-// 		if err := c.Bind(req); err != nil {
-// 			return err
-// 		}
-// 		if req.RequestType == "request" {
-// 			log.Printf("hello 2")
-// 			accounts := GetLocksOnAvailableAccounts(req.Accounts)
-// 			return c.JSON(http.StatusOK, accounts)
-// 		} else if req.RequestType == "release" {
-// 			ReleaseLocksOnAccounts(req.Accounts)
-// 			return c.JSON(http.StatusOK, "Locks released")
-// 		} else {
-// 			return c.JSON(http.StatusBadRequest, "Invalid request type")
-// 		}
-// 	})
-// 	e.Logger.Fatal(e.Start(":1323"))
-// }
-
 package main
 
 import (
 	"encoding/json"
+	"fmt"
 	"log"
 	"net/http"
+	"os"
+	"strconv"
 	"sync"
 
+	"github.com/joho/godotenv"
 	"github.com/labstack/echo/v4"
 )
 
@@ -141,6 +62,11 @@ func ReleaseLocksOnAccounts(accounts []string) {
 
 func main() {
 	e := echo.New()
+	err := godotenv.Load()
+	if err != nil {
+		log.Fatal("Error loading .env file")
+	}
+
 	e.POST("/get-lock", func(c echo.Context) error {
 		var req Request
 		if err := c.Bind(&req); err != nil {
@@ -148,6 +74,9 @@ func main() {
 		}
 		if req.RequestType == "request" {
 			accounts := GetLocksOnAvailableAccounts(req.Accounts)
+			if accounts == nil {
+				accounts = []string{}
+			}
 			acc := ResponseStruct{Message: accounts}
 			a, err := json.Marshal(acc)
 			if err != nil {
@@ -163,5 +92,6 @@ func main() {
 			return c.JSON(http.StatusBadRequest, "Invalid request type")
 		}
 	})
-	e.Logger.Fatal(e.Start(":1323"))
+	val, _ := strconv.Atoi(os.Getenv("LEADERPORT"))
+	e.Logger.Fatal(e.Start(fmt.Sprintf(":%d", val)))
 }

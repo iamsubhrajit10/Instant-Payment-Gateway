@@ -1,6 +1,6 @@
 #!/bin/bash
 
-url="http://10.0.118.104:8088/transfer"  # Replace with your server URL
+url="http://192.168.1.8:8088/transfer"  # Replace with your server URL
 total_requests=10 # Total number of requests
 duration=10 # Duration in seconds
 threads=4  # Number of threads
